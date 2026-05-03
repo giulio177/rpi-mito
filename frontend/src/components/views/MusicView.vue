@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-full relative flex p-8 gap-10 overflow-hidden text-white">
+  <div class="w-full h-full relative flex p-8 gap-10 text-white">
     
     <!-- Action Bar Fissa (Memoria Muscolare) -->
     <div class="absolute top-6 right-6 z-50 flex gap-4">
