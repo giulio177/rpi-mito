@@ -32,7 +32,7 @@ Per prima cosa, assicurati che la lista dei pacchetti sia aggiornata e installa 
 ```bash
 sudo apt update && sudo apt install git -y
 ```
-2. Clona il Repository
+### 2. Clona il Repository
 Scarica il progetto direttamente nella cartella Home (~) del tuo utente:
 
 ```bash
@@ -40,7 +40,7 @@ cd ~
 git clone [https://github.com/giulio177/rpi-mito.git](https://github.com/giulio177/rpi-mito.git)
 ```
 
-3. Avvia lo Script di Installazione Automatico
+### 3. Avvia lo Script di Installazione Automatico
 Entra nella cartella appena clonata e rendi eseguibile lo script di installazione. Questo script si occuperà di configurare Kiosk mode, Bluetooth, PulseAudio, l'ambiente Python e i servizi di sistema:
 
 ```bash
@@ -50,7 +50,7 @@ sudo ./install_mito.sh
 ```
 ☕ Mettiti comodo: Lo script impiegherà alcuni minuti per scaricare tutte le dipendenze, compilare l'ambiente virtuale e configurare l'hardware dell'auto.
 
-4. Riavvio Finale
+### 4. Riavvio Finale
 Quando lo script avrà terminato con successo, ti chiederà di riavviare il sistema. Esegui:
 
 ```bash
