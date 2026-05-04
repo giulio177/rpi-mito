@@ -5,6 +5,10 @@
   body {
     @apply bg-black text-[#e2e2e2] m-0 p-0 overflow-hidden;
     font-family: 'Inter', sans-serif;
+    /* Evita panning e zoom accidentali */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   
   .material-symbols-outlined {
@@ -15,11 +19,18 @@
   }
 }
 
-/* Custom Scrollbar per viste scrollabili (es. LibraryView) */
-.custom-scrollbar::-webkit-scrollbar { 
-  width: 6px; 
+/* Nasconde le scrollbar del browser globalmente */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb { 
-  background-color: rgba(255,255,255,0.2); 
-  border-radius: 10px; 
+
+/* Custom Scrollbar per viste scrollabili (solo se esplicitamente voluto via classe) */
+.custom-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.custom-scrollbar::-webkit-scrollbar { 
+  display: none;
 }
