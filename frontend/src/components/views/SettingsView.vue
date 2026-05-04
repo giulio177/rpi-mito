@@ -300,7 +300,37 @@
     </div>
   </div>
 
-  <!-- MODAL DI CONFERMA -->
+        <!-- MODAL DI AGGIORNAMENTO PRONTO -->
+        <Teleport to="body">
+          <Transition name="modal-fade">
+            <div v-if="showUpdateModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
+              <div class="absolute inset-0 bg-black/60 backdrop-blur-md" @click="showUpdateModal = false"></div>
+              <div class="relative bg-[#1c1c1e] border border-white/10 w-[500px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95 duration-300">
+                <div class="w-20 h-20 bg-[#ddb7ff]/20 rounded-full flex items-center justify-center mx-auto">
+                  <span class="material-symbols-outlined text-[#ddb7ff] text-4xl">system_update</span>
+                </div>
+                <div class="text-center">
+                  <h3 class="text-2xl font-bold text-white mb-2">Aggiornamento Pronto</h3>
+                  <p class="text-white/60">
+                    Il nuovo codice è stato scaricato. Per applicare le modifiche è necessario riavviare:
+                    <span v-if="updateManifest.restart_backend" class="block font-bold text-[#ddb7ff] mt-2">• Servizi Backend</span>
+                    <span v-if="updateManifest.restart_kiosk" class="block font-bold text-[#ddb7ff]">• Interfaccia Grafica</span>
+                  </p>
+                </div>
+                <div class="flex flex-col gap-3">
+                  <button @click="applyUpdateRestarts" class="w-full py-4 bg-[#ddb7ff] text-[#490080] font-bold rounded-2xl active:scale-95 transition-transform">
+                    Riavvia e Applica
+                  </button>
+                  <button @click="showUpdateModal = false" class="w-full py-4 bg-white/5 text-white/50 font-medium rounded-2xl">
+                    Più tardi
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </Teleport>
+
+        <!-- MODAL DI CONFERMA -->
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="showConfirmModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
@@ -432,10 +462,25 @@ const isUpdating    = ref(false)
 const updateMessage = ref('')
 const updateSuccess = ref(false)
 const isPowerBusy   = ref(false)
+const updateLog = ref('')
 
 // Confirmation modal state
 const showConfirmModal = ref(false)
+const confirmTitle = ref('')
+const confirmMessage = ref('')
+const confirmActionRef = ref<(() => void) | null>(null)
 const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
+
+// --- UPDATE MODAL ---
+const showUpdateModal = ref(false)
+const updateManifest = ref({ restart_backend: false, restart_kiosk: false, message: '' })
+
+const openConfirm = (title: string, message: string, action: () => void) => {
+  confirmTitle.value = title
+  confirmMessage.value = message
+  confirmActionRef.value = action
+  showConfirmModal.value = true
+}
 
 onMounted(async () => {
   try {
@@ -450,20 +495,36 @@ onMounted(async () => {
 })
 
 const handleUpdate = async () => {
-  isUpdating.value   = true
-  updateMessage.value = ''
+  isUpdating.value = true
+  updateLog.value = 'Ricerca aggiornamenti in corso...'
   try {
-    const res  = await fetch(`${API}/api/system/update`, { method: 'POST' })
+    const res = await fetch('http://localhost:8000/api/system/update', { method: 'POST' })
     const data = await res.json()
-    updateSuccess.value = data.success
-    updateMessage.value = data.success
-      ? `✓ ${data.message || 'Aggiornamento completato!'}`
-      : `✕ ${data.message || 'Aggiornamento fallito.'}`
+    if (data.success) {
+      updateLog.value = data.message
+      if (data.needs_restart && (data.needs_restart.restart_backend || data.needs_restart.restart_kiosk)) {
+        updateManifest.value = data.needs_restart
+        showUpdateModal.value = true
+      } else {
+        updateLog.value += '\n\nSistema già aggiornato.'
+      }
+    } else {
+      updateLog.value = 'Aggiornamento fallito: ' + data.message
+    }
   } catch (e) {
-    updateSuccess.value = false
-    updateMessage.value = '✕ Errore di connessione al backend.'
+    updateLog.value = 'Errore di rete durante l\'aggiornamento.'
   } finally {
     isUpdating.value = false
+  }
+}
+
+const applyUpdateRestarts = async () => {
+  showUpdateModal.value = false
+  if (updateManifest.value.restart_backend) {
+    await fetch('http://localhost:8000/api/system/reboot-app', { method: 'POST' })
+  } else if (updateManifest.value.restart_kiosk) {
+    // Se solo il kiosk deve riavviarsi, il backend può farlo direttamente
+    await fetch('http://localhost:8000/api/system/reboot-app', { method: 'POST' })
   }
 }
 

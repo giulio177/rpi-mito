@@ -24,33 +24,41 @@ CHANGES=$(git diff --name-only $LOCAL_HASH $REMOTE_HASH)
 git pull origin main
 echo "$LOG_PREFIX Codice aggiornato."
 
-# 1. Pulizia cache Python (Sempre sicura e veloce)
+RESTART_BACKEND=false
+RESTART_KIOSK=false
+
+# 1. Pulizia cache Python
 find "$PROJECT_DIR" -name '*.pyc' -delete
 find "$PROJECT_DIR" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
-# 2. Aggiornamento dipendenze Python (Solo se requirements.txt è cambiato)
-if echo "$CHANGES" | grep -q "backend/requirements.txt"; then
-    echo "$LOG_PREFIX Rilevato cambio requirements.txt. Aggiornamento pip..."
-    cd "$BACKEND_DIR"
-    venv/bin/pip install -q -r requirements.txt
-else
-    echo "$LOG_PREFIX Dipendenze Python invariate. Skip."
+# 2. Aggiornamento dipendenze Python
+if echo "$CHANGES" | grep -qE "backend/requirements.txt|backend/main.py|backend/modules/|backend/core/"; then
+    echo "$LOG_PREFIX Rilevato cambio backend."
+    RESTART_BACKEND=true
+    if echo "$CHANGES" | grep -q "backend/requirements.txt"; then
+        cd "$BACKEND_DIR"
+        venv/bin/pip install -q -r requirements.txt
+    fi
 fi
 
-# 3. Build Frontend (Solo se file frontend sono cambiati)
+# 3. Build Frontend
 if echo "$CHANGES" | grep -qE "^frontend/src/|^frontend/index.html|^frontend/package"; then
-    echo "$LOG_PREFIX Rilevato cambio frontend. Compilazione in corso..."
+    echo "$LOG_PREFIX Rilevato cambio frontend."
+    RESTART_KIOSK=true
     cd "$FRONTEND_DIR"
     npm install --silent
     npm run build
-    echo "$LOG_PREFIX Frontend compilato."
-else
-    echo "$LOG_PREFIX Frontend invariato. Skip build."
 fi
 
-# 4. Riavvio Servizi (Differito di 2 secondi per permettere al backend di rispondere alla UI)
-echo "$LOG_PREFIX Riavvio servizi programmato tra 2 secondi..."
-(sleep 2 && systemctl restart mito-backend.service && systemctl restart mito-kiosk.service) &
+# 4. Scriviamo il manifesto per l'app
+cat > "$PROJECT_DIR/update_manifest.json" <<EOF
+{
+  "restart_backend": $RESTART_BACKEND,
+  "restart_kiosk": $RESTART_KIOSK,
+  "changes": "$(echo "$CHANGES" | tr '\n' ' ' | cut -c1-100)..."
+}
+EOF
 
-echo "$LOG_PREFIX Aggiornamento completato. Il sistema si riavvierà tra pochi istanti."
+echo "$LOG_PREFIX Aggiornamento scaricato. Manifesto creato."
+
 

@@ -78,11 +78,27 @@ class RealSystemModule:
 
             output = stdout.decode().strip()
             if proc.returncode == 0:
-                logger.info(f"[System] OTA update succeeded: {output}")
-                return {"success": True, "message": output}
+                logger.info(f"[System] OTA update script finished: {output}")
+                
+                # Leggiamo cosa dobbiamo riavviare
+                manifest_path = os.path.join(PROJECT_DIR, "update_manifest.json")
+                manifest = {"restart_backend": False, "restart_kiosk": False}
+                if os.path.exists(manifest_path):
+                    try:
+                        with open(manifest_path, "r") as f:
+                            manifest = json.load(f)
+                    except:
+                        pass
+                
+                return {
+                    "success": True, 
+                    "message": output,
+                    "needs_restart": manifest
+                }
             else:
                 logger.error(f"[System] OTA update failed: {output}")
                 return {"success": False, "message": output}
+
         except Exception as e:
             logger.error(f"[System] update_app error: {e}")
             return {"success": False, "message": str(e)}
