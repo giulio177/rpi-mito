@@ -121,7 +121,8 @@ if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/m
 sed -i '/Class =/d' /etc/bluetooth/main.conf
 sed -i '/DiscoverableTimeout =/d' /etc/bluetooth/main.conf
 sed -i '/Name =/d' /etc/bluetooth/main.conf
-sed -i '/^\[General\]/a Class = 0x400408\nDiscoverableTimeout = 0\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nName = MITO-fr' /etc/bluetooth/main.conf
+sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 0\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-fr' /etc/bluetooth/main.conf
+
 
 
 # Agente BlueZ (Auto-pairing)
