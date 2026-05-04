@@ -57,7 +57,8 @@ apt install -y \
   bluez bluez-tools pi-bluetooth bluez-firmware \
   libdbus-1-dev libglib2.0-dev python3-dev \
   build-essential pkg-config \
-  cage chromium # <-- NOVITÀ: Kiosk Web Mode
+  cage chromium \
+  seatd nodejs npm # <-- Kiosk + Wayland seat + Node per build frontend
 
 echo ">>> Pacchetti installati."
 echo
@@ -137,18 +138,40 @@ EOF
 systemctl enable --now bt-auto-pair.service
 
 ###############################################################################
-# 5) Gruppi e Virtual Environment (Python FastAPI)
+# 5) Gruppi, Seatd, Virtual Environment e Build Frontend
 ###############################################################################
-usermod -aG video,input,audio,bluetooth "$USER_NAME" || true
+# Aggiungi l'utente ai gruppi necessari per Wayland/Cage
+usermod -aG video,input,audio,bluetooth,tty,render "$USER_NAME" || true
 
+# Abilita seatd per i permessi del compositor Wayland
+systemctl enable --now seatd || true
+# Aggiungi l'utente al gruppo seat (necessario per cage)
+gpasswd -a "$USER_NAME" seat || true
+
+# --- 5.1 Pulizia cache Python (evita errori "bad magic number" da file .pyc del Mac) ---
+echo ">>> Pulizia cache Python..."
+find "$PROJECT_DIR" -name '*.pyc' -delete
+find "$PROJECT_DIR" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+echo ">>> Cache Python rimossa."
+
+# --- 5.2 Build del Frontend ---
+echo ">>> Build Frontend (npm install && npm run build)..."
+sudo -u "$USER_NAME" bash -lc "
+  set -e
+  cd '$PROJECT_DIR/frontend'
+  npm install
+  npm run build
+"
+echo ">>> Frontend compilato in frontend/dist."
+
+# --- 5.3 Setup Virtual Environment Python ---
 echo ">>> Setup Virtual Environment Python..."
 sudo -u "$USER_NAME" bash -lc "
   set -e
-  cd '$PROJECT_DIR'
+  cd '$PROJECT_DIR/backend'
   python3 -m venv venv
   source venv/bin/activate
   pip install --upgrade pip
-  # Assicurati di avere uvicorn, fastapi, tinytag, ecc. nel requirements.txt
   if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 "
 
@@ -167,13 +190,12 @@ After=network.target bluetooth.service pulseaudio.service
 Type=simple
 User=$USER_NAME
 Group=$USER_NAME
-WorkingDirectory=$PROJECT_DIR
+# WorkingDirectory punta a backend/ così uvicorn trova main:app senza prefissi
+WorkingDirectory=$PROJECT_DIR/backend
 Environment=PYTHONUNBUFFERED=1
-# Aggiungi qui variabili dbus se necessarie per il BT in python
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_UID/bus
 
-# Avvia uvicorn (sostituisci 'main:app' se il tuo file base si chiama diversamente)
-ExecStart=$PROJECT_DIR/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
 
@@ -185,19 +207,28 @@ EOF
 cat >/etc/systemd/system/mito-kiosk.service <<EOF
 [Unit]
 Description=MITO-fr Web UI Kiosk
-After=mito-backend.service
+After=mito-backend.service seatd.service
 Wants=mito-backend.service
 
 [Service]
 Type=simple
 User=$USER_NAME
 Group=$USER_NAME
+PAMName=login
 WorkingDirectory=$PROJECT_DIR
 Environment=WLR_LIBINPUT_NO_DEVICES=1
-Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
-# Avvia Chromium in modalita Kiosk sopra al compositor Cage
-ExecStart=/usr/bin/cage -- /usr/bin/chromium --kiosk --no-sandbox --disable-infobars --start-maximized --overscroll-history-navigation=0 http://localhost:8000
+# Avvia Chromium in kiosk mode senza popup traduttore
+ExecStart=/usr/bin/cage -- /usr/bin/chromium \
+  --kiosk \
+  --no-sandbox \
+  --disable-infobars \
+  --start-maximized \
+  --overscroll-history-navigation=0 \
+  --disable-translate \
+  --disable-features=Translate \
+  http://localhost:8000
 Restart=always
 RestartSec=5
 
