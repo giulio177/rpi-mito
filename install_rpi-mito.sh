@@ -14,7 +14,7 @@ fi
 USER_NAME="${SUDO_USER:-pi}"
 USER_UID="$(id -u "$USER_NAME")"
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
-PROJECT_DIR="$USER_HOME/MITO-fr" # Assicurati che la cartella si chiami così
+PROJECT_DIR="$USER_HOME/rpi-mito" # Assicurati che la cartella si chiami così
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
   echo "Directory progetto non trovata: $PROJECT_DIR"
