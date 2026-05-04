@@ -37,7 +37,7 @@ Scarica il progetto direttamente nella cartella Home (~) del tuo utente:
 
 ```bash
 cd ~
-git clone [https://github.com/giulio177/rpi-mito.git](https://github.com/giulio177/rpi-mito.git)
+git clone https://github.com/giulio177/rpi-mito.git
 ```
 
 ### 3. Avvia lo Script di Installazione Automatico
