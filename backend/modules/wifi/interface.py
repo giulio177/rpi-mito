@@ -9,7 +9,7 @@ class WiFiState(ModuleState):
     ssid: Optional[str] = None
     ip_address: Optional[str] = None
     signal_strength: int = 0
-    available_networks: List[Dict[str, str]] = []
+    available_networks: List[Dict[str, Any]] = []
 
 
 class WiFiModuleInterface(BaseModule):
@@ -21,7 +21,7 @@ class WiFiModuleInterface(BaseModule):
         pass
     
     @abstractmethod
-    def scan_networks(self) -> List[Dict[str, str]]:
+    def scan_networks(self) -> List[Dict[str, Any]]:
         """Scan for available networks"""
         pass
     

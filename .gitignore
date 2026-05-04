@@ -33,3 +33,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Old install script
+install_rpi_car_infotainment.sh

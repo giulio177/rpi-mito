@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import json
 import asyncio
 import os
+import inspect
 
 from core.config import get_settings
 from core.hal import HALFactory
@@ -86,6 +87,8 @@ async def set_volume(level: int):
     audio = HALFactory.get_module("audio")
     if audio:
         success = audio.set_volume(level)
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success, "volume": audio.get_volume()}
     return {"error": "Audio module not available"}
 
@@ -95,6 +98,8 @@ async def set_mute(muted: bool):
     audio = HALFactory.get_module("audio")
     if audio:
         success = audio.set_muted(muted)
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success, "muted": audio.get_muted()}
     return {"error": "Audio module not available"}
 
@@ -111,7 +116,10 @@ async def bluetooth_status():
 async def bluetooth_devices():
     bt = HALFactory.get_module("bluetooth")
     if bt:
-        return bt.scan_devices()
+        devices = bt.scan_devices()
+        if inspect.isawaitable(devices):
+            devices = await devices
+        return devices
     return []
 
 
@@ -120,6 +128,8 @@ async def bt_connect(address: str):
     bt = HALFactory.get_module("bluetooth")
     if bt:
         success = bt.connect(address)
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success}
     return {"error": "Bluetooth module not available"}
 
@@ -129,6 +139,8 @@ async def bt_disconnect():
     bt = HALFactory.get_module("bluetooth")
     if bt:
         success = bt.disconnect()
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success}
     return {"error": "Bluetooth module not available"}
 
@@ -145,7 +157,10 @@ async def wifi_status():
 async def wifi_networks():
     wifi = HALFactory.get_module("wifi")
     if wifi:
-        return wifi.scan_networks()
+        networks = wifi.scan_networks()
+        if inspect.isawaitable(networks):
+            networks = await networks
+        return networks
     return []
 
 
@@ -154,6 +169,8 @@ async def wifi_connect(ssid: str, password: str = ""):
     wifi = HALFactory.get_module("wifi")
     if wifi:
         success = wifi.connect(ssid, password)
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success}
     return {"error": "WiFi module not available"}
 
@@ -163,6 +180,8 @@ async def wifi_disconnect():
     wifi = HALFactory.get_module("wifi")
     if wifi:
         success = wifi.disconnect()
+        if inspect.isawaitable(success):
+            success = await success
         return {"success": success}
     return {"error": "WiFi module not available"}
 
@@ -173,6 +192,54 @@ async def obd_status():
     if obd:
         return obd.get_status()
     return {"error": "OBD module not available"}
+
+
+# ── System endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/api/system/version")
+async def system_version():
+    system = HALFactory.get_module("system")
+    if system:
+        git_info = await system.get_git_info()
+        return {
+            "version": system.get_version(),
+            **git_info
+        }
+    return {"version": "unknown"}
+
+
+@app.post("/api/system/update")
+async def system_update():
+    system = HALFactory.get_module("system")
+    if system:
+        return await system.update_app()
+    return {"error": "System module not available"}
+
+
+@app.post("/api/system/reboot-app")
+async def system_reboot_app():
+    system = HALFactory.get_module("system")
+    if system:
+        return await system.reboot_app()
+    return {"error": "System module not available"}
+
+
+@app.post("/api/system/reboot")
+async def system_reboot():
+    system = HALFactory.get_module("system")
+    if system:
+        return await system.reboot_system()
+    return {"error": "System module not available"}
+
+
+@app.post("/api/system/shutdown")
+async def system_shutdown():
+    system = HALFactory.get_module("system")
+    if system:
+        return await system.shutdown_system()
+    return {"error": "System module not available"}
+
+
 
 
 @app.get("/api/airplay/status")

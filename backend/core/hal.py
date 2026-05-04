@@ -37,41 +37,22 @@ class HALFactory:
     @classmethod
     def _load_module(cls, module_name: str, hal_mode: str) -> Any:
         """Load the appropriate module implementation"""
+        import sys
+        
         try:
-            if hal_mode == "real":
+            if hal_mode == "real" or sys.platform.startswith('linux'):
                 if module_name == "audio":
-                    from modules import audio as audio_module
-                    real_module = getattr(audio_module, "RealAudioModule", None)
-                    if real_module:
-                        return real_module()
-                        
-                if module_name == "media":
+                    from modules.audio.real import RealAudioModule
+                    return RealAudioModule()
+                elif module_name == "media":
                     from modules.media import RealMediaModule
                     return RealMediaModule()
-            else:
-                # Mock mode (development on macOS)
-                if module_name == "audio":
-                    from modules import audio as audio_module
-                    mock_module = getattr(audio_module, "MockAudioModule", None)
-                    if mock_module:
-                        return mock_module()
-                        
-                # Also check media
-                if module_name == "media":
-                    from modules.media import RealMediaModule
-                    return RealMediaModule()
-                    
-                # Also check bluetooth, wifi, etc.
-                if module_name == "bluetooth":
-                    from modules import bluetooth
-                    mock = getattr(bluetooth, "MockBluetoothModule", None)
-                    if mock:
-                        return mock()
+                elif module_name == "bluetooth":
+                    from modules.bluetooth.real import RealBluetoothModule
+                    return RealBluetoothModule()
                 elif module_name == "wifi":
-                    from modules import wifi
-                    mock = getattr(wifi, "MockWiFiModule", None)
-                    if mock:
-                        return mock()
+                    from modules.wifi.real import RealWiFiModule
+                    return RealWiFiModule()
                 elif module_name == "obd":
                     from modules.obd import placeholder
                     return placeholder.OBDPlaceholder()
@@ -81,6 +62,36 @@ class HALFactory:
                 elif module_name == "map":
                     from modules.map import placeholder
                     return placeholder.MapPlaceholder()
+                elif module_name == "system":
+                    from modules.system.real import RealSystemModule
+                    return RealSystemModule()
+            else:
+                # Mock mode (development on macOS)
+                if module_name == "audio":
+                    from modules.audio.mock import MockAudioModule
+                    return MockAudioModule()
+                elif module_name == "media":
+                    # Media always uses Real
+                    from modules.media import RealMediaModule
+                    return RealMediaModule()
+                elif module_name == "bluetooth":
+                    from modules.bluetooth.mock import MockBluetoothModule
+                    return MockBluetoothModule()
+                elif module_name == "wifi":
+                    from modules.wifi.mock import MockWiFiModule
+                    return MockWiFiModule()
+                elif module_name == "obd":
+                    from modules.obd import placeholder
+                    return placeholder.OBDPlaceholder()
+                elif module_name == "airplay":
+                    from modules.airplay import placeholder
+                    return placeholder.AirPlayPlaceholder()
+                elif module_name == "map":
+                    from modules.map import placeholder
+                    return placeholder.MapPlaceholder()
+                elif module_name == "system":
+                    from modules.system.mock import MockSystemModule
+                    return MockSystemModule()
                         
         except ImportError as e:
             print(f"Warning: Could not load module '{module_name}': {e}")
@@ -97,7 +108,7 @@ class HALFactory:
             Dictionary mapping module names to initialization success status
         """
         results = {}
-        for name in ["audio", "bluetooth", "wifi", "obd", "airplay", "map", "media"]:
+        for name in ["audio", "bluetooth", "wifi", "obd", "airplay", "map", "media", "system"]:
             try:
                 module = cls.get_module(name)
                 if module:

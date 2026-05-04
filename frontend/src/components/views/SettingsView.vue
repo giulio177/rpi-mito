@@ -40,8 +40,94 @@
       <div v-if="activeMenuId !== null" @click.stop="activeMenuId = null" class="fixed inset-0 z-40 bg-transparent"></div>
 
       <!-- GENERAL -->
-      <div v-if="activeTab === 'general'" class="flex-1 flex items-center justify-center">
-        <p class="text-white/40 text-lg">Impostazioni Generali...</p>
+      <div v-if="activeTab === 'general'" class="flex-1 flex flex-col gap-6 overflow-y-auto pb-40 pr-4 pt-2">
+
+        <!-- Info & Aggiornamento -->
+        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl flex flex-col gap-5">
+          <div>
+            <h2 class="text-2xl font-semibold mb-1">Sistema</h2>
+            <p class="text-white/40 text-sm">Informazioni sulla versione e aggiornamenti OTA</p>
+          </div>
+
+          <div class="flex items-center justify-between bg-white/5 rounded-2xl px-5 py-4">
+            <div>
+              <p class="text-sm text-white/50 font-medium uppercase tracking-wider mb-0.5">Versione</p>
+              <p class="text-white font-semibold text-lg">{{ systemVersion }}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-sm text-white/50 font-medium uppercase tracking-wider mb-0.5">Branch</p>
+              <p class="text-white/70 font-medium font-mono">{{ systemBranch }} · {{ systemCommit }}</p>
+            </div>
+          </div>
+
+          <button
+            id="btn-system-update"
+            @click="handleUpdate"
+            :disabled="isUpdating"
+            class="flex items-center justify-center gap-3 bg-[#ddb7ff] text-black font-bold px-6 py-3.5 rounded-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <span v-if="isUpdating" class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-[20px]">cloud_download</span>
+            <span>{{ isUpdating ? 'Aggiornamento in corso...' : 'Cerca Aggiornamenti (Pull da GitHub)' }}</span>
+          </button>
+
+          <!-- Feedback aggiornamento -->
+          <div v-if="updateMessage" class="rounded-xl px-4 py-3 text-sm font-medium"
+               :class="updateSuccess ? 'bg-green-500/15 border border-green-500/30 text-green-400' : 'bg-red-500/15 border border-red-500/30 text-red-400'">
+            {{ updateMessage }}
+          </div>
+        </div>
+
+        <!-- Alimentazione (Danger zone) -->
+        <div class="bg-red-500/5 border border-red-500/20 p-6 rounded-3xl flex flex-col gap-4">
+          <div>
+            <h2 class="text-2xl font-semibold mb-1">Alimentazione</h2>
+            <p class="text-white/40 text-sm">Operazioni di riavvio e spegnimento del sistema</p>
+          </div>
+
+          <!-- Riavvia solo app -->
+          <button
+            id="btn-reboot-app"
+            @click="handleRebootApp"
+            :disabled="isPowerBusy"
+            class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
+          >
+            <span class="material-symbols-outlined text-white/70 text-[24px]">refresh</span>
+            <div>
+              <p class="font-semibold text-white">Riavvia Solo App</p>
+              <p class="text-sm text-white/40">Ricarica il kiosk senza riavviare il Pi</p>
+            </div>
+          </button>
+
+          <!-- Riavvia sistema -->
+          <button
+            id="btn-reboot-system"
+            @click="confirmAction('reboot')"
+            :disabled="isPowerBusy"
+            class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-white/5 hover:bg-orange-500/10 border border-white/10 hover:border-orange-500/30 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
+          >
+            <span class="material-symbols-outlined text-orange-400 text-[24px]">restart_alt</span>
+            <div>
+              <p class="font-semibold text-orange-300">Riavvia Sistema</p>
+              <p class="text-sm text-white/40">Spegne e riavvia il Raspberry Pi</p>
+            </div>
+          </button>
+
+          <!-- Spegni -->
+          <button
+            id="btn-shutdown"
+            @click="confirmAction('shutdown')"
+            :disabled="isPowerBusy"
+            class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
+          >
+            <span class="material-symbols-outlined text-red-400 text-[24px]">power_settings_new</span>
+            <div>
+              <p class="font-semibold text-red-400">Spegni Raspberry Pi</p>
+              <p class="text-sm text-white/40">Spegnimento completo del sistema</p>
+            </div>
+          </button>
+        </div>
+
       </div>
 
       <!-- BLUETOOTH -->
@@ -222,6 +308,42 @@
 
     </div>
   </div>
+
+  <!-- MODAL DI CONFERMA -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showConfirmModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showConfirmModal = false"></div>
+        <!-- Card -->
+        <div class="relative bg-[#1c1c1e] border border-white/10 rounded-3xl p-8 w-80 flex flex-col gap-6 shadow-2xl">
+          <div class="flex flex-col items-center gap-3 text-center">
+            <span class="material-symbols-outlined text-[48px]"
+                  :class="pendingAction === 'shutdown' ? 'text-red-400' : 'text-orange-400'">
+              {{ pendingAction === 'shutdown' ? 'power_settings_new' : 'restart_alt' }}
+            </span>
+            <h3 class="text-xl font-bold">Sei sicuro?</h3>
+            <p class="text-white/50 text-sm">
+              {{ pendingAction === 'shutdown'
+                ? 'Stai per spegnere il Raspberry Pi. Dovrai riaccenderlo manualmente.'
+                : "Stai per riavviare il sistema. L'interfaccia sarà temporaneamente non disponibile." }}
+            </p>
+          </div>
+          <div class="flex gap-3">
+            <button @click="showConfirmModal = false"
+              class="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-semibold transition-colors">
+              Annulla
+            </button>
+            <button @click="executePendingAction"
+              class="flex-1 py-3 rounded-xl font-bold transition-colors"
+              :class="pendingAction === 'shutdown' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white'">
+              Conferma
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -288,4 +410,89 @@ const connectToNewWifi = (net: any) => {
     alert(`Connessione a ${net.ssid} in corso...`)
   }
 }
+
+// ─── SYSTEM ───────────────────────────────────────────────────────────────────
+
+const API = 'http://localhost:8000'
+
+const systemVersion = ref('...')
+const systemCommit  = ref('...')
+const systemBranch  = ref('...')
+const isUpdating    = ref(false)
+const updateMessage = ref('')
+const updateSuccess = ref(false)
+const isPowerBusy   = ref(false)
+
+// Confirmation modal state
+const showConfirmModal = ref(false)
+const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
+
+onMounted(async () => {
+  try {
+    const res = await fetch(`${API}/api/system/version`)
+    const data = await res.json()
+    systemVersion.value = data.version ? `v${data.version}` : 'N/D'
+    systemCommit.value  = data.commit  ?? 'N/D'
+    systemBranch.value  = data.branch  ?? 'N/D'
+  } catch {
+    systemVersion.value = 'N/D'
+  }
+})
+
+const handleUpdate = async () => {
+  isUpdating.value   = true
+  updateMessage.value = ''
+  try {
+    const res  = await fetch(`${API}/api/system/update`, { method: 'POST' })
+    const data = await res.json()
+    updateSuccess.value = data.success
+    updateMessage.value = data.success
+      ? `✓ ${data.message || 'Aggiornamento completato!'}`
+      : `✕ ${data.message || 'Aggiornamento fallito.'}`
+  } catch (e) {
+    updateSuccess.value = false
+    updateMessage.value = '✕ Errore di connessione al backend.'
+  } finally {
+    isUpdating.value = false
+  }
+}
+
+const handleRebootApp = async () => {
+  isPowerBusy.value = true
+  try {
+    await fetch(`${API}/api/system/reboot-app`, { method: 'POST' })
+  } finally {
+    isPowerBusy.value = false
+  }
+}
+
+const confirmAction = (action: 'reboot' | 'shutdown') => {
+  pendingAction.value  = action
+  showConfirmModal.value = true
+}
+
+const executePendingAction = async () => {
+  showConfirmModal.value = false
+  isPowerBusy.value = true
+  try {
+    const endpoint = pendingAction.value === 'shutdown'
+      ? `${API}/api/system/shutdown`
+      : `${API}/api/system/reboot`
+    await fetch(endpoint, { method: 'POST' })
+  } finally {
+    isPowerBusy.value  = false
+    pendingAction.value = null
+  }
+}
 </script>
+
+<style scoped>
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+</style>

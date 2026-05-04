@@ -9,7 +9,7 @@ class BluetoothState(ModuleState):
     device_name: Optional[str] = None
     device_address: Optional[str] = None
     battery_level: Optional[int] = None
-    available_devices: List[Dict[str, str]] = []
+    available_devices: List[Dict[str, Any]] = []
 
 
 class BluetoothModuleInterface(BaseModule):
@@ -21,7 +21,7 @@ class BluetoothModuleInterface(BaseModule):
         pass
     
     @abstractmethod
-    def scan_devices(self) -> List[Dict[str, str]]:
+    def scan_devices(self) -> List[Dict[str, Any]]:
         """Scan for available devices"""
         pass
     

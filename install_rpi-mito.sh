@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+###############################################################################
+# MITO-fr Car Infotainment Installer (Vue.js + FastAPI)
+# Raspberry Pi OS Lite (Bookworm / Bullseye)
+###############################################################################
+
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Questo script va eseguito con sudo o da root."
+  exit 1
+fi
+
+USER_NAME="${SUDO_USER:-pi}"
+USER_UID="$(id -u "$USER_NAME")"
+USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
+PROJECT_DIR="$USER_HOME/MITO-fr" # Assicurati che la cartella si chiami così
+
+if [[ ! -d "$PROJECT_DIR" ]]; then
+  echo "Directory progetto non trovata: $PROJECT_DIR"
+  echo "Clona prima il repository in $USER_HOME."
+  exit 1
+fi
+
+echo "=========================================="
+echo " Inizio Setup MITO-fr Infotainment"
+echo " Utente: $USER_NAME"
+echo " Directory: $PROJECT_DIR"
+echo "=========================================="
+echo
+
+###############################################################################
+# 1) Individua la partizione di boot
+###############################################################################
+if [[ -f /boot/firmware/cmdline.txt ]]; then
+  BOOT_DIR="/boot/firmware"
+elif [[ -f /boot/cmdline.txt ]]; then
+  BOOT_DIR="/boot"
+else
+  echo "Impossibile trovare cmdline.txt."
+  exit 1
+fi
+
+CMDLINE_FILE="$BOOT_DIR/cmdline.txt"
+CONFIG_FILE="$BOOT_DIR/config.txt"
+
+###############################################################################
+# 2) Aggiornamento sistema e Pacchetti (Aggiunto Cage e Chromium)
+###############################################################################
+echo ">>> Aggiornamento sistema e installazione dipendenze..."
+apt update && apt full-upgrade -y
+
+apt install -y \
+  git python3-venv python3-pip \
+  ffmpeg \
+  pulseaudio pulseaudio-module-bluetooth alsa-utils \
+  bluez bluez-tools pi-bluetooth bluez-firmware \
+  libdbus-1-dev libglib2.0-dev python3-dev \
+  build-essential pkg-config \
+  cage chromium-browser # <-- NOVITÀ: Kiosk Web Mode
+
+echo ">>> Pacchetti installati."
+echo
+
+###############################################################################
+# 3) Configurazione Boot & HDMI 1024x600 (Mantenuto)
+###############################################################################
+echo ">>> Configurazione Boot e HDMI..."
+
+EXTRA_CMDLINE="logo.nologo quiet loglevel=3 vt.global_cursor_default=0"
+if ! grep -q "logo.nologo" "$CMDLINE_FILE"; then
+  sed -i "1s|\$| ${EXTRA_CMDLINE}|" "$CMDLINE_FILE"
+fi
+
+# Abilita FKMS
+if grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_FILE"; then
+  sed -i 's/dtoverlay=vc4-kms-v3d/dtoverlay=vc4-fkms-v3d/' "$CONFIG_FILE"
+elif ! grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_FILE"; then
+  echo "dtoverlay=vc4-fkms-v3d" >> "$CONFIG_FILE"
+fi
+
+# Risoluzione Custom 1024x600
+if ! grep -q "hdmi_cvt=1024 600 60 6 0 0 0" "$CONFIG_FILE"; then
+cat >> "$CONFIG_FILE" << 'EOF'
+# MITO-fr Display
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1024 600 60 6 0 0 0
+EOF
+fi
+
+# Audio
+if grep -q '^dtparam=audio=' "$CONFIG_FILE"; then
+  sed -i 's/^dtparam=audio=.*/dtparam=audio=on/' "$CONFIG_FILE"
+else
+  echo 'dtparam=audio=on' >> "$CONFIG_FILE"
+fi
+
+###############################################################################
+# 4) Configurazione Bluetooth HW & SW (Mantenuto - Cruciale)
+###############################################################################
+echo ">>> Configurazione Bluetooth e PulseAudio..."
+
+# Fix Hardware
+sed -i '/dtoverlay=disable-bt/d' "$CONFIG_FILE"
+if ! grep -q "enable_uart=1" "$CONFIG_FILE"; then echo "enable_uart=1" >> "$CONFIG_FILE"; fi
+command -v rfkill &> /dev/null && rfkill unblock bluetooth || true
+systemctl enable hciuart || true
+
+# Configurazione PulseAudio BT
+cat >/etc/pulse/default.pa <<'EOF'
+load-module module-bluetooth-policy auto_switch=2 a2dp_source_selection=auto
+load-module module-bluetooth-discover
+EOF
+
+# Configurazione BlueZ (main.conf)
+if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/main.conf; fi
+sed -i '/^\[General\]/a Class = 0x200420\nDiscoverableTimeout = 30\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-Infotainment' /etc/bluetooth/main.conf
+
+# Agente BlueZ (Auto-pairing)
+cat >/etc/systemd/system/bt-auto-pair.service <<EOF
+[Unit]
+Description=Bluetooth Auto-Accept Agent
+After=bluetooth.service
+Requires=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable --now bt-auto-pair.service
+
+###############################################################################
+# 5) Gruppi e Virtual Environment (Python FastAPI)
+###############################################################################
+usermod -aG video,input,audio,bluetooth "$USER_NAME" || true
+
+echo ">>> Setup Virtual Environment Python..."
+sudo -u "$USER_NAME" bash -lc "
+  set -e
+  cd '$PROJECT_DIR'
+  python3 -m venv venv
+  source venv/bin/activate
+  pip install --upgrade pip
+  # Assicurati di avere uvicorn, fastapi, tinytag, ecc. nel requirements.txt
+  if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+"
+
+###############################################################################
+# 6) Creazione Servizi Systemd (NOVITÀ: Split Backend / Frontend)
+###############################################################################
+echo ">>> Creazione Servizi Systemd..."
+
+# --- 6.1 BACKEND SERVICE (FastAPI) ---
+cat >/etc/systemd/system/mito-backend.service <<EOF
+[Unit]
+Description=MITO-fr FastAPI Backend
+After=network.target bluetooth.service pulseaudio.service
+
+[Service]
+Type=simple
+User=$USER_NAME
+Group=$USER_NAME
+WorkingDirectory=$PROJECT_DIR
+Environment=PYTHONUNBUFFERED=1
+# Aggiungi qui variabili dbus se necessarie per il BT in python
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_UID/bus
+
+# Avvia uvicorn (sostituisci 'main:app' se il tuo file base si chiama diversamente)
+ExecStart=$PROJECT_DIR/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# --- 6.2 FRONTEND KIOSK SERVICE (Cage + Chromium) ---
+cat >/etc/systemd/system/mito-kiosk.service <<EOF
+[Unit]
+Description=MITO-fr Web UI Kiosk
+After=mito-backend.service
+Wants=mito-backend.service
+
+[Service]
+Type=simple
+User=$USER_NAME
+Group=$USER_NAME
+WorkingDirectory=$PROJECT_DIR
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
+
+# Avvia Chromium in modalita Kiosk sopra al compositor Cage
+ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --no-sandbox --disable-infobars --start-maximized --overscroll-history-navigation=0 http://localhost:8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+systemctl daemon-reload
+systemctl enable mito-backend.service
+systemctl enable mito-kiosk.service
+
+###############################################################################
+# 7) Secure Shutdown & Cleanup
+###############################################################################
+if ! grep -q "disable_splash=1" "$CONFIG_FILE"; then echo "disable_splash=1" >> "$CONFIG_FILE"; fi
+if ! grep -q "boot_delay=0" "$CONFIG_FILE"; then echo "boot_delay=0" >> "$CONFIG_FILE"; fi
+if ! grep -q "gpio-poweroff" "$CONFIG_FILE"; then
+    echo "dtoverlay=gpio-poweroff,gpiopin=17,active_low=1" >> "$CONFIG_FILE"
+fi
+
+###############################################################################
+# 8) Permessi Sudo per il Backend (Update, Spegnimento, Riavvio)
+###############################################################################
+echo ">>> Configurazione permessi sudo per $USER_NAME..."
+
+cat >/etc/sudoers.d/mito_permissions <<EOF
+$USER_NAME ALL=(ALL) NOPASSWD: /sbin/poweroff, /sbin/reboot, /bin/systemctl restart mito-kiosk.service, /bin/systemctl restart mito-backend.service
+EOF
+chmod 0440 /etc/sudoers.d/mito_permissions
+echo "Permessi sudo configurati."
+
+
+echo ">>> INSTALLAZIONE COMPLETATA."
+echo "I servizi 'mito-backend' e 'mito-kiosk' sono installati."
+echo "Ora esegui: sudo reboot"
