@@ -53,36 +53,30 @@ class RealBluetoothModule(BluetoothModuleInterface):
             )
             stdout, _ = await proc.communicate()
             
+            stdout, _ = await self._run_command("devices Paired")
             devices = []
-            output = stdout.decode().strip()
-            for line in output.split('\n'):
-                if "Device " in line:
-                    parts = line.split(" ", 2)
-                    if len(parts) >= 3:
-                        mac = parts[1]
-                        name = parts[2]
-                        
-                        # Controlliamo se è connesso
-                        info_proc = await asyncio.create_subprocess_shell(
-                            f"bluetoothctl info {mac}",
-                            stdout=asyncio.subprocess.PIPE
-                        )
-                        info_out, _ = await info_proc.communicate()
-                        is_connected = "Connected: yes" in info_out.decode()
-                        
-                        devices.append({
-                            "id": mac,
-                            "address": mac,
-                            "name": name,
-                            "isConnected": is_connected,
-                            "isPaired": True
-                        })
-            
+            for line in stdout.decode().splitlines():
+                # format: Device XX:XX:XX:XX:XX:XX Name
+                parts = line.split(None, 2)
+                if len(parts) >= 3:
+                    dev_id = parts[1]
+                    name = parts[2]
+                    
+                    # Controlla se è connesso davvero
+                    info, _ = await self._run_command(f"info {dev_id}")
+                    is_connected = "Connected: yes" in info.decode()
+                    
+                    devices.append({
+                        "id": dev_id,
+                        "address": dev_id,
+                        "name": name,
+                        "isConnected": is_connected,
+                        "isPaired": True
+                    })
             return devices
         except Exception as e:
             print(f"[RealBluetooth] Paired devices error: {e}")
             return []
-
 
     async def scan_devices(self) -> List[Dict[str, Any]]:
         try:

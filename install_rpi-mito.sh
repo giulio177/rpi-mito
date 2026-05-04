@@ -146,11 +146,36 @@ WantedBy=multi-user.target
 EOF
 systemctl enable --now bt-auto-pair.service
 
+# Configurazione PulseAudio BT (Sink + Source)
+cat >/etc/pulse/system.pa <<'EOF'
+load-module module-native-protocol-unix auth-anonymous=1
+load-module module-bluetooth-policy
+load-module module-bluetooth-discover
+load-module module-switch-on-connect
+EOF
+
+# Servizio PulseAudio (necessario per audio bluetooth in background)
+cat >/etc/systemd/system/pulseaudio.service <<EOF
+[Unit]
+Description=PulseAudio System Daemon
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pulseaudio --system --disallow-exit --disallow-module-loading --realtime --log-target=journal
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable --now pulseaudio.service
+
 ###############################################################################
 # 5) Gruppi, Seatd, Virtual Environment e Build Frontend
 ###############################################################################
 echo ">>> Configurazione permessi hardware e gruppi..."
-usermod -aG video,input,audio,bluetooth,tty,render "$USER_NAME" || true
+usermod -aG video,input,audio,bluetooth,tty,render,pulse-access "$USER_NAME" || true
 
 # Abilita seatd per i permessi del compositor Wayland
 systemctl enable --now seatd || true
@@ -202,6 +227,8 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_UID/bus
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
+TimeoutStopSec=5s
+
 
 [Install]
 WantedBy=multi-user.target
@@ -228,6 +255,8 @@ ExecStart=/usr/bin/cage -- /usr/bin/chromium \
   http://localhost:8000
 Restart=always
 RestartSec=5
+TimeoutStopSec=5s
+
 
 [Install]
 WantedBy=multi-user.target

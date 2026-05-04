@@ -14,22 +14,41 @@ const API_BASE = 'http://localhost:8000/api/bluetooth'
 const pairedDevices = ref<BluetoothDevice[]>([])
 const availableDevices = ref<BluetoothDevice[]>([])
 const isScanning = ref(false)
+const adapterName = ref('MITO-fr')
+const isPowered = ref(false)
+const isDiscoverable = ref(false)
 
 export function useBluetooth() {
   const connectedDevice = computed(() => pairedDevices.value.find(d => d.isConnected))
   const favoriteDevice = computed(() => pairedDevices.value.find(d => d.isFavorite) || pairedDevices.value[0])
 
-  const fetchStatus = async () => {
+  const updateStatus = async () => {
     try {
       const res = await fetch(`${API_BASE}/status`)
       const data = await res.json()
-      pairedDevices.value = data.paired_devices.map((d: any) => ({
-        ...d,
-        isConnected: d.id === data.connected_device_id,
-        isFavorite: d.id === localStorage.getItem('bt_favorite') // Recupera dai preferiti locali
-      }))
+      if (data) {
+        adapterName.value = data.adapter_name || 'MITO-fr'
+        isPowered.value = data.is_powered
+        isDiscoverable.value = data.is_discoverable
+        
+        pairedDevices.value = data.paired_devices.map((d: any) => ({
+          ...d,
+          isConnected: d.id === data.connected_device_id,
+          isFavorite: d.id === localStorage.getItem('bt_favorite')
+        }))
+      }
     } catch (e) {
-      console.error('Errore fetch bluetooth status:', e)
+      console.error('BT Status error:', e)
+    }
+  }
+
+  const fetchPairedDevices = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/paired`)
+      const data = await res.json()
+      pairedDevices.value = data
+    } catch (e) {
+      console.error('Error fetching paired devices:', e)
     }
   }
 
