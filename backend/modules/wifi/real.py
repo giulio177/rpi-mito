@@ -90,9 +90,14 @@ class RealWiFiModule(WiFiModuleInterface):
 
     async def connect(self, ssid: str, password: Optional[str] = None) -> bool:
         try:
+            # 1. Pulizia: eliminiamo profili vecchi con lo stesso nome per evitare conflitti
+            await asyncio.create_subprocess_shell(f'nmcli connection delete "{ssid}"')
+            
+            # 2. Connessione
             cmd = f'nmcli dev wifi connect "{ssid}"'
             if password:
                 cmd += f' password "{password}"'
+
                 
             proc = await asyncio.create_subprocess_shell(
                 cmd,

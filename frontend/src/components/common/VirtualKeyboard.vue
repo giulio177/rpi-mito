@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-x-0 bottom-0 z-[200] bg-[#1c1c1e]/90 backdrop-blur-3xl border-t border-white/10 rounded-t-[40px] p-6 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-4 animate-in slide-in-from-bottom-full duration-300">
+  <div class="fixed inset-x-0 bottom-0 z-[200] bg-[#1c1c1e] border-t border-white/10 rounded-t-[40px] p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.8)] flex flex-col gap-4">
     
     <!-- Area di Testo -->
     <div class="flex flex-col items-center mb-2">

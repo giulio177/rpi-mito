@@ -93,7 +93,13 @@ class RealBluetoothModule(BluetoothModuleInterface):
             return []
 
     async def scan_devices(self) -> List[Dict[str, Any]]:
-        return await self.get_paired_devices()
+        try:
+            # Avviamo una scansione reale per 5 secondi
+            await asyncio.create_subprocess_shell("bluetoothctl --timeout 5 scan on")
+            return await self.get_paired_devices()
+        except Exception as e:
+            print(f"[RealBluetooth] Scan error: {e}")
+            return await self.get_paired_devices()
 
     async def toggle_connection(self, mac_address: str, connect: bool) -> bool:
         cmd_action = "connect" if connect else "disconnect"
@@ -138,20 +144,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
     async def set_discoverable(self, state: bool) -> bool:
         action = "on" if state else "off"
         try:
-            proc = await asyncio.create_subprocess_shell(
-                f"bluetoothctl discoverable {action}",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            await proc.communicate()
-            if proc.returncode == 0:
-                if state:
-                    asyncio.create_task(self._disable_discoverable())
-                return True
-            return False
+            # Dobbiamo attivare sia discoverable che pairable
+            await asyncio.create_subprocess_shell(f"bluetoothctl discoverable {action}")
+            await asyncio.create_subprocess_shell(f"bluetoothctl pairable {action}")
+            return True
         except Exception as e:
             print(f"[RealBluetooth] Exception setting discoverable: {e}")
             return False
+
 
     def get_battery_level(self) -> Optional[int]:
         return self._state.battery_level
