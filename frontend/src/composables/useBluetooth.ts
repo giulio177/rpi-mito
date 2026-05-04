@@ -17,20 +17,27 @@ const isScanning = ref(false)
 
 export function useBluetooth() {
   const connectedDevice = computed(() => pairedDevices.value.find(d => d.isConnected))
+  const favoriteDevice = computed(() => pairedDevices.value.find(d => d.isFavorite) || pairedDevices.value[0])
 
   const fetchStatus = async () => {
     try {
       const res = await fetch(`${API_BASE}/status`)
       const data = await res.json()
-      // Il backend ritorna paired_devices e connected_device_id
       pairedDevices.value = data.paired_devices.map((d: any) => ({
         ...d,
         isConnected: d.id === data.connected_device_id,
-        isFavorite: false // Gestito localmente o nel backend se implementato
+        isFavorite: d.id === localStorage.getItem('bt_favorite') // Recupera dai preferiti locali
       }))
     } catch (e) {
       console.error('Errore fetch bluetooth status:', e)
     }
+  }
+
+  const toggleFavorite = (id: string) => {
+    localStorage.setItem('bt_favorite', id)
+    pairedDevices.value.forEach(d => {
+      d.isFavorite = (d.id === id)
+    })
   }
 
   const scanDevices = async () => {
@@ -47,7 +54,7 @@ export function useBluetooth() {
   }
 
   const toggleConnection = async (id: string) => {
-    const device = pairedDevices.value.find(d => d.id === id)
+    const device = pairedDevices.value.find(d => d.id === id) || availableDevices.value.find(d => d.id === id)
     if (!device) return
 
     const endpoint = device.isConnected ? 'disconnect' : 'connect'
@@ -59,10 +66,16 @@ export function useBluetooth() {
       })
       const data = await res.json()
       if (data.success) {
-        await fetchStatus() // Rinfresca lo stato
+        await fetchStatus()
       }
     } catch (e) {
       console.error(`Errore ${endpoint} bluetooth:`, e)
+    }
+  }
+
+  const connectToFavorite = async () => {
+    if (favoriteDevice.value && !favoriteDevice.value.isConnected) {
+      await toggleConnection(favoriteDevice.value.id)
     }
   }
 
@@ -78,8 +91,12 @@ export function useBluetooth() {
     availableDevices, 
     isScanning,
     connectedDevice, 
+    favoriteDevice,
     fetchStatus, 
     scanDevices, 
-    toggleConnection 
+    toggleConnection,
+    toggleFavorite,
+    connectToFavorite
   }
 }
+
