@@ -44,9 +44,9 @@ git clone https://github.com/giulio177/rpi-mito.git
 Entra nella cartella appena clonata e rendi eseguibile lo script di installazione. Questo script si occuperà di configurare Kiosk mode, Bluetooth, PulseAudio, l'ambiente Python e i servizi di sistema:
 
 ```bash
-cd MITO-fr
-chmod +x install_mito.sh
-sudo ./install_mito.sh
+cd rpi-mito
+chmod +x install_rpi-mito.sh
+sudo ./install_rpi-mito.sh
 ```
 ☕ Mettiti comodo: Lo script impiegherà alcuni minuti per scaricare tutte le dipendenze, compilare l'ambiente virtuale e configurare l'hardware dell'auto.
 
