@@ -18,11 +18,13 @@ if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
     exit 0
 fi
 
-# Vediamo cosa cambierà per decidere cosa aggiornare
-CHANGES=$(git diff --name-only $LOCAL_HASH $REMOTE_HASH)
+# Sincronizzazione forzata con GitHub (sovrascrive modifiche locali)
+git fetch origin main
+CHANGES=$(git diff --name-only HEAD origin/main)
+git reset --hard origin/main
 
-git pull origin main
-echo "$LOG_PREFIX Codice aggiornato."
+echo "$LOG_PREFIX Codice aggiornato con successo (Forced Reset)."
+
 
 RESTART_BACKEND=false
 RESTART_KIOSK=false
