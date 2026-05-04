@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 mt-4 mb-4 z-10 grid grid-cols-12 gap-[24px] h-full min-h-0">
+  <div class="flex-1 mt-4 mb-4 pb-28 z-10 grid grid-cols-12 gap-[24px] h-full min-h-0">
     
     <!-- Left Panel: Media Player -->
     <div class="col-span-7 rounded-3xl overflow-hidden relative bg-white/5 backdrop-blur-2xl border border-white/10 group">

@@ -14,8 +14,14 @@
       <div class="absolute -bottom-40 -right-20 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[120px] opacity-20 pointer-events-none z-0"></div>
       
       <TopBar />
-      <router-view class="flex-1 mt-4 mb-4 z-10" />
-      <BottomNav />
+      
+      <!-- Router view riempie lo spazio fino in fondo, DEVE avere min-h-0 -->
+      <router-view class="flex-1 mt-4 z-10 min-h-0 w-full" />
+
+      <!-- BottomNav Fluttuante -->
+      <div class="absolute bottom-6 left-0 w-full z-50 pointer-events-none px-6">
+        <BottomNav class="pointer-events-auto" />
+      </div>
     </div>
   </div>
 </template>
