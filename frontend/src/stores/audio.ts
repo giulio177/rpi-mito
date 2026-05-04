@@ -78,6 +78,149 @@ export const useAudioStore = defineStore('audio', () => {
     }
   }
 
+  // --- Local Audio Playback (HTML5) ---
+  const htmlAudio = ref<HTMLAudioElement | null>(null)
+  const localCurrentSong = ref<any>(null)
+  const isLocalPlaying = ref(false)
+  const localProgress = ref(0)
+  const localPlaylist = ref<any[]>([])
+  const shuffleEnabled = ref(false)
+  const repeatEnabled = ref(false)
+  const shuffleRemaining = ref<any[]>([])
+
+  const playNext = () => {
+    if (localPlaylist.value.length === 0) return
+    
+    if (shuffleEnabled.value) {
+      if (shuffleRemaining.value.length === 0) {
+        if (repeatEnabled.value) {
+          shuffleRemaining.value = [...localPlaylist.value]
+          if (localCurrentSong.value) {
+             shuffleRemaining.value = shuffleRemaining.value.filter(s => s.id !== localCurrentSong.value.id)
+          }
+        } else {
+          isLocalPlaying.value = false
+          return // Stop playing
+        }
+      }
+      if (shuffleRemaining.value.length === 0) return
+      
+      const randomIndex = Math.floor(Math.random() * shuffleRemaining.value.length)
+      const nextSong = shuffleRemaining.value[randomIndex]
+      shuffleRemaining.value.splice(randomIndex, 1)
+      playLocalSong(nextSong, localPlaylist.value, true)
+    } else {
+      let nextIndex = 0
+      if (localCurrentSong.value) {
+        const currentIndex = localPlaylist.value.findIndex(s => s.id === localCurrentSong.value.id)
+        nextIndex = currentIndex + 1
+      }
+      
+      if (nextIndex >= localPlaylist.value.length) {
+        if (repeatEnabled.value) {
+          nextIndex = 0
+        } else {
+          isLocalPlaying.value = false
+          return // Stop playing
+        }
+      }
+      playLocalSong(localPlaylist.value[nextIndex], localPlaylist.value, true)
+    }
+  }
+
+  const playPrevious = () => {
+    if (localPlaylist.value.length === 0) return
+    
+    if (htmlAudio.value && htmlAudio.value.currentTime > 3) {
+      htmlAudio.value.currentTime = 0
+      return
+    }
+
+    if (shuffleEnabled.value) {
+       playNext() // On shuffle, just pick another random song
+    } else {
+      let prevIndex = localPlaylist.value.length - 1
+      if (localCurrentSong.value) {
+        const currentIndex = localPlaylist.value.findIndex(s => s.id === localCurrentSong.value.id)
+        prevIndex = currentIndex - 1
+      }
+      
+      if (prevIndex < 0) {
+        prevIndex = localPlaylist.value.length - 1
+      }
+      playLocalSong(localPlaylist.value[prevIndex], localPlaylist.value, true)
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    htmlAudio.value = new window.Audio()
+    htmlAudio.value.addEventListener('timeupdate', () => {
+      if (htmlAudio.value && htmlAudio.value.duration) {
+        localProgress.value = (htmlAudio.value.currentTime / htmlAudio.value.duration) * 100
+      }
+    })
+    htmlAudio.value.addEventListener('ended', () => {
+      playNext()
+    })
+  }
+
+  const playLocalSong = (song: any, playlist?: any[], forcePlay = false) => {
+    if (!htmlAudio.value) return
+    
+    if (playlist) {
+      localPlaylist.value = playlist
+    }
+    
+    if (localCurrentSong.value?.id === song.id && !forcePlay) {
+      // Toggle play/pause if same song
+      if (isLocalPlaying.value) {
+        htmlAudio.value.pause()
+        isLocalPlaying.value = false
+      } else {
+        htmlAudio.value.play()
+        isLocalPlaying.value = true
+      }
+      return
+    }
+    
+    // Play new song
+    localCurrentSong.value = song
+    htmlAudio.value.src = `http://localhost:8000/library/${song.filename}`
+    htmlAudio.value.play()
+    isLocalPlaying.value = true
+  }
+
+  const toggleShuffle = () => {
+    shuffleEnabled.value = !shuffleEnabled.value
+    if (shuffleEnabled.value) {
+      shuffleRemaining.value = [...localPlaylist.value]
+      if (localCurrentSong.value) {
+         shuffleRemaining.value = shuffleRemaining.value.filter(s => s.id !== localCurrentSong.value.id)
+      }
+    }
+  }
+
+  const toggleRepeat = () => {
+    repeatEnabled.value = !repeatEnabled.value
+  }
+
+  const toggleLocalPlay = () => {
+    if (!htmlAudio.value || !localCurrentSong.value) return
+    if (isLocalPlaying.value) {
+      htmlAudio.value.pause()
+      isLocalPlaying.value = false
+    } else {
+      htmlAudio.value.play()
+      isLocalPlaying.value = true
+    }
+  }
+
+  const seekLocal = (percent: number) => {
+    if (!htmlAudio.value || !htmlAudio.value.duration) return
+    htmlAudio.value.currentTime = (percent / 100) * htmlAudio.value.duration
+    localProgress.value = percent
+  }
+
   return {
     volume,
     muted,
@@ -92,5 +235,20 @@ export const useAudioStore = defineStore('audio', () => {
     setMuted,
     toggleMute,
     updateFromWs,
+    // Local playback
+    htmlAudio,
+    localCurrentSong,
+    isLocalPlaying,
+    localProgress,
+    localPlaylist,
+    shuffleEnabled,
+    repeatEnabled,
+    playLocalSong,
+    toggleLocalPlay,
+    seekLocal,
+    playNext,
+    playPrevious,
+    toggleShuffle,
+    toggleRepeat
   }
 })

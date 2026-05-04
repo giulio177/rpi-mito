@@ -39,16 +39,27 @@ class HALFactory:
         """Load the appropriate module implementation"""
         try:
             if hal_mode == "real":
-                from modules import audio as audio_module
-                real_module = getattr(audio_module, "RealAudioModule", None)
-                if real_module:
-                    return real_module()
+                if module_name == "audio":
+                    from modules import audio as audio_module
+                    real_module = getattr(audio_module, "RealAudioModule", None)
+                    if real_module:
+                        return real_module()
+                        
+                if module_name == "media":
+                    from modules.media import RealMediaModule
+                    return RealMediaModule()
             else:
                 # Mock mode (development on macOS)
-                from modules import audio as audio_module
-                mock_module = getattr(audio_module, "MockAudioModule", None)
-                if mock_module:
-                    return mock_module()
+                if module_name == "audio":
+                    from modules import audio as audio_module
+                    mock_module = getattr(audio_module, "MockAudioModule", None)
+                    if mock_module:
+                        return mock_module()
+                        
+                # Also check media
+                if module_name == "media":
+                    from modules.media import RealMediaModule
+                    return RealMediaModule()
                     
                 # Also check bluetooth, wifi, etc.
                 if module_name == "bluetooth":
@@ -86,7 +97,7 @@ class HALFactory:
             Dictionary mapping module names to initialization success status
         """
         results = {}
-        for name in ["audio", "bluetooth", "wifi", "obd", "airplay", "map"]:
+        for name in ["audio", "bluetooth", "wifi", "obd", "airplay", "map", "media"]:
             try:
                 module = cls.get_module(name)
                 if module:

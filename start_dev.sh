@@ -31,7 +31,7 @@ cleanup() {
 }
 
 # Cattura i segnali (CTRL+C)
-trap cleanup SIGINT SIGTERM EXIT
+# trap cleanup SIGINT SIGTERM EXIT
 
 # Mantieni lo script in esecuzione 
 # wait

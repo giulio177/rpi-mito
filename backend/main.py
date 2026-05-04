@@ -1,8 +1,11 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 import json
 import asyncio
+import os
 
 from core.config import get_settings
 from core.hal import HALFactory
@@ -56,6 +59,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure library directory exists before mounting
+library_path = os.path.join(os.path.dirname(__file__), "library")
+if not os.path.exists(library_path):
+    os.makedirs(library_path)
+
+app.mount("/library", StaticFiles(directory=library_path), name="library")
 
 
 @app.get("/")
@@ -179,6 +189,47 @@ async def map_status():
     if map_mod:
         return map_mod.get_status()
     return {"error": "Map module not available"}
+
+
+@app.get("/api/media/songs")
+async def get_songs():
+    media = HALFactory.get_module("media")
+    if media:
+        return await media.get_all_songs()
+    return {"error": "Media module not available"}
+
+
+class RenameRequest(BaseModel):
+    new_name: str
+
+class TrimRequest(BaseModel):
+    start_time: int
+    end_time: int
+
+@app.delete("/api/media/songs/{song_id}")
+async def delete_song(song_id: str):
+    media = HALFactory.get_module("media")
+    if media:
+        success = await media.delete_song(song_id)
+        return {"success": success}
+    return {"error": "Media module not available"}
+
+@app.put("/api/media/songs/{song_id}/rename")
+async def rename_song(song_id: str, req: RenameRequest):
+    media = HALFactory.get_module("media")
+    if media:
+        success = await media.rename_song(song_id, req.new_name)
+        return {"success": success}
+    return {"error": "Media module not available"}
+
+@app.post("/api/media/songs/{song_id}/trim")
+async def trim_song(song_id: str, req: TrimRequest):
+    media = HALFactory.get_module("media")
+    if media:
+        success = await media.trim_song(song_id, req.start_time, req.end_time)
+        return {"success": success}
+    return {"error": "Media module not available"}
+
 
 
 @app.websocket("/ws")

@@ -18,7 +18,7 @@
     <template v-if="!showLyrics">
       <!-- Sinistra: Copertina Album -->
       <div class="w-[40%] max-w-[320px] aspect-square bg-[#1c1c1e] rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 shrink-0 z-10 relative my-auto">
-        <img :src="songPlaceholder" class="w-full h-full object-cover" />
+        <img :src="currentCover" class="w-full h-full object-cover" />
       </div>
 
       <!-- Destra: Info e Controlli -->
@@ -26,43 +26,43 @@
         
         <!-- Titolo e Artista -->
         <div class="pr-40">
-          <h1 class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 line-clamp-1">Midnight City</h1>
-          <p class="font-title-sm text-[28px] font-medium text-[#ddb7ff]">M83</p>
+          <h1 class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 line-clamp-1">{{ currentTitle }}</h1>
+          <p class="font-title-sm text-[28px] font-medium text-[#ddb7ff]">{{ currentArtist }}</p>
         </div>
 
         <!-- Playback Controls -->
         <div class="flex flex-col gap-6">
           <!-- Progress Bar -->
           <div class="w-full flex items-center gap-4">
-            <span class="text-white/50 text-sm font-medium">1:24</span>
+            <span class="text-white/50 text-sm font-medium w-12 text-right">{{ currentTimeText }}</span>
             <div class="relative flex-1 h-2 bg-white/20 rounded-full">
               <!-- Parte Riempita -->
-              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: localProgress + '%' }"></div>
               <!-- Input Range Invisibile Interattivo -->
-              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+              <input type="range" min="0" max="100" v-model.number="localProgress" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
-            <span class="text-white/50 text-sm font-medium">-2:40</span>
+            <span class="text-white/50 text-sm font-medium w-12 text-left">{{ remainingTimeText }}</span>
           </div>
 
           <!-- Main Buttons -->
           <div class="flex justify-between items-center px-4">
-            <button class="text-white/40 hover:text-[#ddb7ff] transition-colors">
+            <button @click="audioStore.toggleShuffle()" class="transition-colors" :class="shuffleEnabled ? 'text-[#ddb7ff] drop-shadow-[0_0_8px_rgba(221,183,255,0.8)]' : 'text-white/40 hover:text-white/70'">
               <span class="material-symbols-outlined text-[28px]">shuffle</span>
             </button>
             
             <div class="flex items-center gap-6">
-              <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+              <button @click="audioStore.playPrevious()" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
                 <span class="material-symbols-outlined text-[32px] text-white">skip_previous</span>
               </button>
-              <button class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
-                <span class="material-symbols-outlined filled text-[48px]">pause</span>
+              <button @click="togglePlay" class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
+                <span class="material-symbols-outlined filled text-[48px]">{{ isLocalPlaying ? 'pause' : 'play_arrow' }}</span>
               </button>
-              <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+              <button @click="audioStore.playNext()" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
                 <span class="material-symbols-outlined text-[32px] text-white">skip_next</span>
               </button>
             </div>
 
-            <button class="text-white/40 hover:text-[#ddb7ff] transition-colors">
+            <button @click="audioStore.toggleRepeat()" class="transition-colors" :class="repeatEnabled ? 'text-[#ddb7ff] drop-shadow-[0_0_8px_rgba(221,183,255,0.8)]' : 'text-white/40 hover:text-white/70'">
               <span class="material-symbols-outlined text-[28px]">repeat</span>
             </button>
           </div>
@@ -91,11 +91,11 @@
         <!-- Info (Cover, Title, Artist) -->
         <div class="flex flex-col items-center gap-4">
           <div class="w-32 h-32 bg-[#1c1c1e] rounded-2xl overflow-hidden shadow-2xl border border-white/5 shrink-0">
-            <img :src="songPlaceholder" class="w-full h-full object-cover" />
+            <img :src="currentCover" class="w-full h-full object-cover" />
           </div>
           <div class="text-center">
-            <h2 class="font-display-lg text-[22px] font-semibold text-white mb-0.5 line-clamp-1">Midnight City</h2>
-            <p class="font-title-sm text-[15px] font-medium text-[#ddb7ff]">M83</p>
+            <h2 class="font-display-lg text-[22px] font-semibold text-white mb-0.5 line-clamp-1">{{ currentTitle }}</h2>
+            <p class="font-title-sm text-[15px] font-medium text-[#ddb7ff]">{{ currentArtist }}</p>
           </div>
         </div>
 
@@ -103,25 +103,25 @@
         <div class="flex flex-col gap-4 w-full">
           <!-- Progress Bar -->
           <div class="w-full flex items-center gap-3">
-            <span class="text-white/50 text-xs font-medium">1:24</span>
+            <span class="text-white/50 text-xs font-medium w-10 text-right">{{ currentTimeText }}</span>
             <div class="relative flex-1 h-1.5 bg-white/20 rounded-full">
               <!-- Parte Riempita -->
-              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: localProgress + '%' }"></div>
               <!-- Input Range Invisibile Interattivo -->
-              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+              <input type="range" min="0" max="100" v-model.number="localProgress" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
-            <span class="text-white/50 text-xs font-medium">-2:40</span>
+            <span class="text-white/50 text-xs font-medium w-10 text-left">{{ remainingTimeText }}</span>
           </div>
 
           <!-- Main Buttons (No Shuffle/Repeat) -->
-          <div class="flex justify-center items-center gap-6">
-            <button class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
+          <div class="flex items-center justify-center gap-6 mt-2">
+            <button @click="audioStore.playPrevious()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
               <span class="material-symbols-outlined text-[12px] text-white">skip_previous</span>
             </button>
-            <button class="w-12 h-12 flex items-center justify-center rounded-[18px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)] shrink-0">
-              <span class="material-symbols-outlined filled text-[18px]">pause</span>
+            <button @click="togglePlay" class="w-12 h-12 flex items-center justify-center rounded-[18px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)] shrink-0">
+              <span class="material-symbols-outlined filled text-[18px]">{{ isLocalPlaying ? 'pause' : 'play_arrow' }}</span>
             </button>
-            <button class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
+            <button @click="audioStore.playNext()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
               <span class="material-symbols-outlined text-[12px] text-white">skip_next</span>
             </button>
           </div>
@@ -133,9 +133,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAudioStore } from '@/stores/audio'
 import songPlaceholder from '@/assets/song-placeholder.png'
 
+const audioStore = useAudioStore()
+const { localCurrentSong, isLocalPlaying, localProgress, shuffleEnabled, repeatEnabled } = storeToRefs(audioStore)
+
 const showLyrics = ref(false)
-const songProgress = ref(33)
+
+const formatDuration = (seconds: number) => {
+  if (!seconds || isNaN(seconds)) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+const currentTitle = computed(() => localCurrentSong.value?.title || 'Seleziona un brano')
+const currentArtist = computed(() => localCurrentSong.value?.artist || 'Libreria')
+const currentCover = computed(() => localCurrentSong.value?.coverUrl || songPlaceholder)
+
+const currentTimeText = computed(() => {
+  if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
+  const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
+  return formatDuration(currentSecs)
+})
+
+const remainingTimeText = computed(() => {
+  if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
+  const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
+  return '-' + formatDuration(localCurrentSong.value.rawDuration - currentSecs)
+})
+
+const togglePlay = () => {
+  audioStore.toggleLocalPlay()
+}
+
+const handleSeek = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  audioStore.seekLocal(Number(target.value))
+}
 </script>

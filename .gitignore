@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .venv/
+venv/
 
 # Build output
 dist/
@@ -23,3 +24,12 @@ logs/
 # Environment
 .env
 .env.local
+
+# Media Library
+backend/library/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
