@@ -269,8 +269,16 @@ fi
 ###############################################################################
 echo ">>> Configurazione permessi sudo per $USER_NAME..."
 
+# Rendi eseguibile lo script di update
+chmod +x "$PROJECT_DIR/update.sh"
+
 cat >/etc/sudoers.d/mito_permissions <<EOF
-$USER_NAME ALL=(ALL) NOPASSWD: /sbin/poweroff, /sbin/reboot, /bin/systemctl restart mito-kiosk.service, /bin/systemctl restart mito-backend.service
+# MITO-fr: permessi per operazioni di sistema senza password
+$USER_NAME ALL=(ALL) NOPASSWD: $PROJECT_DIR/update.sh
+$USER_NAME ALL=(ALL) NOPASSWD: /sbin/poweroff
+$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot
+$USER_NAME ALL=(ALL) NOPASSWD: /bin/systemctl restart mito-kiosk.service
+$USER_NAME ALL=(ALL) NOPASSWD: /bin/systemctl restart mito-backend.service
 EOF
 chmod 0440 /etc/sudoers.d/mito_permissions
 echo "Permessi sudo configurati."

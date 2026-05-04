@@ -59,19 +59,30 @@ class RealSystemModule:
             return {"commit": "unknown", "branch": "unknown"}
 
     async def update_app(self) -> Dict[str, Any]:
-        """Pull latest changes from origin and restart the kiosk service."""
+        """Run the OTA update script: git pull, rebuild frontend, restart services."""
+        UPDATE_SCRIPT = os.path.join(PROJECT_DIR, "update.sh")
         try:
-            ok, stdout, stderr = await _run("git pull origin main")
-            if not ok:
-                logger.error(f"[System] git pull failed: {stderr}")
-                return {"success": False, "message": stderr}
+            logger.info("[System] Starting OTA update via update.sh...")
+            proc = await asyncio.create_subprocess_shell(
+                f"sudo {UPDATE_SCRIPT}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,  # merge stderr into stdout
+                cwd=PROJECT_DIR
+            )
+            try:
+                # Allow up to 5 minutes for npm build on Pi
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+            except asyncio.TimeoutError:
+                proc.kill()
+                return {"success": False, "message": "Timeout: aggiornamento troppo lungo (>5 min)."}
 
-            # Restart the kiosk (frontend) service so the new build is served
-            ok_svc, _, svc_err = await _run(f"sudo systemctl restart {KIOSK_SERVICE}")
-            if not ok_svc:
-                logger.warning(f"[System] kiosk restart failed: {svc_err}")
-
-            return {"success": True, "message": stdout}
+            output = stdout.decode().strip()
+            if proc.returncode == 0:
+                logger.info(f"[System] OTA update succeeded: {output}")
+                return {"success": True, "message": output}
+            else:
+                logger.error(f"[System] OTA update failed: {output}")
+                return {"success": False, "message": output}
         except Exception as e:
             logger.error(f"[System] update_app error: {e}")
             return {"success": False, "message": str(e)}
