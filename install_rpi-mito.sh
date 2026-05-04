@@ -57,7 +57,7 @@ apt install -y \
   bluez bluez-tools pi-bluetooth bluez-firmware \
   libdbus-1-dev libglib2.0-dev python3-dev \
   build-essential pkg-config \
-  cage chromium-browser # <-- NOVITÀ: Kiosk Web Mode
+  cage chromium # <-- NOVITÀ: Kiosk Web Mode
 
 echo ">>> Pacchetti installati."
 echo
@@ -197,7 +197,7 @@ Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
 
 # Avvia Chromium in modalita Kiosk sopra al compositor Cage
-ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --no-sandbox --disable-infobars --start-maximized --overscroll-history-navigation=0 http://localhost:8000
+ExecStart=/usr/bin/cage -- /usr/bin/chromium --kiosk --no-sandbox --disable-infobars --start-maximized --overscroll-history-navigation=0 http://localhost:8000
 Restart=always
 RestartSec=5
 
