@@ -1,5 +1,7 @@
+import sys
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
+from pydantic import model_validator
 from functools import lru_cache
 
 
@@ -10,7 +12,9 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    hal_mode: str = "mock"
+    # Default: 'mock' on Mac/Win, 'real' on Linux (Raspberry Pi)
+    # Override with HAL_MODE=real in .env or environment
+    hal_mode: str = "real" if sys.platform.startswith("linux") else "mock"
 
     audio_mixer_control: str = "Master"
 
@@ -20,4 +24,3 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
-    

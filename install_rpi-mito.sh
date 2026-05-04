@@ -111,7 +111,7 @@ systemctl enable hciuart || true
 
 # Configurazione PulseAudio BT
 cat >/etc/pulse/default.pa <<'EOF'
-load-module module-bluetooth-policy auto_switch=2 a2dp_source_selection=auto
+load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 EOF
 
@@ -207,17 +207,17 @@ EOF
 cat >/etc/systemd/system/mito-kiosk.service <<EOF
 [Unit]
 Description=MITO-fr Web UI Kiosk
-After=mito-backend.service seatd.service
+After=mito-backend.service seatd.service network.target
 Wants=mito-backend.service
 
 [Service]
 Type=simple
 User=$USER_NAME
 Group=$USER_NAME
-PAMName=login
 WorkingDirectory=$PROJECT_DIR
 Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=HOME=/home/$USER_NAME
 
 # Avvia Chromium in kiosk mode senza popup traduttore
 ExecStart=/usr/bin/cage -- /usr/bin/chromium \
@@ -233,12 +233,27 @@ Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
 systemctl enable mito-backend.service
 systemctl enable mito-kiosk.service
+
+###############################################################################
+# 6.3) Chromium Policy (disabilita popup traduttore e altre UI indesiderate)
+###############################################################################
+mkdir -p /etc/chromium/policies/managed
+cat >/etc/chromium/policies/managed/mito_kiosk.json <<'EOF'
+{
+  "TranslateEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "MetricsReportingEnabled": false,
+  "DefaultBrowserSettingEnabled": false
+}
+EOF
+echo ">>> Policy Chromium configurata."
 
 ###############################################################################
 # 7) Secure Shutdown & Cleanup
