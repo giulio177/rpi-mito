@@ -61,22 +61,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# /library must be mounted BEFORE the "/" catch-all
-library_path = os.path.join(os.path.dirname(__file__), "library")
-if not os.path.exists(library_path):
-    os.makedirs(library_path)
-app.mount("/library", StaticFiles(directory=library_path), name="library")
 
-# Mount built frontend — must be LAST (catch-all for html=True)
-frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
-if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
-else:
-    print(f"ATTENZIONE: Cartella frontend non trovata in {frontend_dir}")
-
-    @app.get("/")
-    async def root():
-        return {"status": "ok", "message": "RPi Car Infotainment Backend — frontend non compilato"}
 
 
 
@@ -337,6 +322,24 @@ async def handle_websocket_message(message: dict):
                 "wifi": wifi.get_status() if wifi else {},
             }
         })
+
+# ── Static Files & Frontend ───────────────────────────────────────────────────
+
+# /library must be mounted BEFORE the "/" catch-all
+library_path = os.path.join(os.path.dirname(__file__), "library")
+if not os.path.exists(library_path):
+    os.makedirs(library_path)
+app.mount("/library", StaticFiles(directory=library_path), name="library")
+
+# Mount built frontend — must be LAST (catch-all for html=True)
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+else:
+    @app.get("/")
+    async def root():
+        return {"status": "ok", "message": "RPi Car Infotainment Backend — frontend non compilato"}
+
 
 
 if __name__ == "__main__":
