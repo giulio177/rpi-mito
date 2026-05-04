@@ -46,47 +46,61 @@ class RealWiFiModule(WiFiModuleInterface):
 
     async def scan_networks(self) -> List[Dict[str, Any]]:
         try:
-            proc = await asyncio.create_subprocess_shell(
-                "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list",
+            # 1. Vediamo qual è la rete attiva attualmente
+            proc_active = await asyncio.create_subprocess_shell(
+                "nmcli -t -f ACTIVE,SSID dev wifi list | grep '^*'",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                print(f"[RealWiFi] Error scanning networks: {stderr.decode()}")
-                return []
+            stdout_active, _ = await proc_active.communicate()
+            active_ssid = stdout_active.decode().strip().replace("*:", "")
+
+            # 2. Elenchiamo tutte le reti
+            proc = await asyncio.create_subprocess_shell(
+                "nmcli -t -f SSID,SIGNAL,SECURITY,BARS dev wifi list",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await proc.communicate()
             
             output = stdout.decode().strip()
             networks = {}
-            for line in output.split('\\n'):
-                if not line:
+            for line in output.split('\n'):
+                if not line or ':' not in line:
                     continue
-                # nmcli output format: SSID:SIGNAL:SECURITY
                 parts = line.split(':')
                 if len(parts) >= 3:
                     ssid = parts[0].strip()
-                    if not ssid:
-                        continue
+                    if not ssid: continue
+                    
                     try:
                         signal = int(parts[1])
-                    except ValueError:
+                    except:
                         signal = 0
-                    security = parts[2].strip()
-                    is_secure = security != "" and security != "--"
+                        
+                    is_secure = "WPA" in parts[2] or "WEP" in parts[2]
+                    is_connected = (ssid == active_ssid)
                     
+                    # Teniamo solo il segnale più forte per lo stesso SSID
                     if ssid not in networks or networks[ssid]['signal'] < signal:
                         networks[ssid] = {
                             "ssid": ssid,
                             "signal": signal,
-                            "security": security,
-                            "is_secure": is_secure
+                            "isSecure": is_secure,
+                            "isConnected": is_connected
                         }
             
             self._state.available_networks = list(networks.values())
+            # Aggiorniamo lo stato globale del modulo
+            if active_ssid:
+                self._state.connected = True
+                self._state.ssid = active_ssid
+            
             return self._state.available_networks
         except Exception as e:
-            print(f"[RealWiFi] Exception during scan: {e}")
+            print(f"[RealWiFi] Scan error: {e}")
             return []
+
 
     async def connect(self, ssid: str, password: Optional[str] = None) -> bool:
         try:
