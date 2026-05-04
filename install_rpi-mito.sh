@@ -117,7 +117,12 @@ EOF
 
 # Configurazione BlueZ (main.conf)
 if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/main.conf; fi
-sed -i '/^\[General\]/a Class = 0x200420\nDiscoverableTimeout = 30\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-Infotainment' /etc/bluetooth/main.conf
+# Rimuoviamo eventuali righe duplicate e aggiungiamo le nostre
+sed -i '/Class =/d' /etc/bluetooth/main.conf
+sed -i '/DiscoverableTimeout =/d' /etc/bluetooth/main.conf
+sed -i '/Name =/d' /etc/bluetooth/main.conf
+sed -i '/^\[General\]/a Class = 0x400408\nDiscoverableTimeout = 0\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nName = MITO-fr' /etc/bluetooth/main.conf
+
 
 # Agente BlueZ (Auto-pairing)
 cat >/etc/systemd/system/bt-auto-pair.service <<EOF
