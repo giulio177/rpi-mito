@@ -2,7 +2,7 @@
   <div class="w-full h-full flex flex-col pt-6 px-8 pb-4 relative text-white min-h-0">
     
     <!-- Overlay Invisibile per chiusura (Click Outside) -->
-    <div v-if="activeMenuId !== null" @click="activeMenuId = null" class="fixed inset-0 z-40"></div>
+    <div v-if="activeMenuId !== null" @click.stop="activeMenuId = null" class="fixed inset-0 z-40 bg-transparent"></div>
 
     <!-- Header -->
     <div class="flex items-center">
@@ -17,7 +17,9 @@
       <button 
         v-for="(song, index) in songs" 
         :key="song.id"
-        class="w-full flex items-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors border border-transparent hover:border-white/10 group text-left"
+        class="w-full flex items-center p-4 rounded-2xl transition-colors border border-transparent group text-left relative"
+        :class="activeMenuId === song.id ? 'shadow-2xl bg-white/10' : 'bg-white/5 hover:bg-white/10 hover:border-white/10'"
+        :style="{ zIndex: activeMenuId === song.id ? 50 : 1 }"
       >
         <!-- Copertina -->
         <img :src="song.coverUrl" class="w-16 h-16 rounded-xl object-cover shadow-md shrink-0" />
@@ -42,9 +44,11 @@
           <div v-if="activeMenuId === song.id" 
                @click.stop
                :class="[
-                 'absolute right-0 z-50 w-56 bg-[#1c1c1e]/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200',
+                 'absolute right-0 w-56 bg-[#1c1c1e]/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200',
                  index >= songs.length - 2 ? 'bottom-14 origin-bottom-right' : 'top-14 origin-top-right'
-               ]">
+               ]"
+               style="z-index: 9999;"
+               >
             
             <!-- Pulsante Taglia -->
             <button class="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/10 text-white transition-colors text-left">

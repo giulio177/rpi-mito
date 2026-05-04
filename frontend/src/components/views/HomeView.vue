@@ -58,18 +58,29 @@
       </div>
 
       <!-- BT Panel -->
-      <div class="h-24 rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 flex items-center px-6 gap-5">
-        <div class="w-12 h-12 rounded-full bg-[#ddb7ff]/20 flex items-center justify-center border border-[#ddb7ff]/30">
-          <span class="material-symbols-outlined text-[#ddb7ff] text-[24px]">smartphone</span>
+      <button 
+        @click="connectToFavorite"
+        class="h-24 w-full rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 flex items-center px-6 gap-5 text-left transition-all hover:bg-white/10 active:scale-[0.98] cursor-pointer"
+      >
+        <div class="w-12 h-12 rounded-full flex items-center justify-center transition-colors border shrink-0"
+             :class="connectedDevice ? 'bg-[#ddb7ff]/20 border-[#ddb7ff]/30' : 'bg-white/5 border-white/10'">
+          <span class="material-symbols-outlined text-[24px] transition-colors"
+                :class="connectedDevice ? 'text-[#ddb7ff]' : 'text-white/40'">smartphone</span>
         </div>
-        <div class="flex flex-col">
-          <span class="font-title-sm text-[20px] font-semibold text-[#e2e2e2]">iPhone di Marco</span>
-          <span class="font-body-md text-sm text-[#ddb7ff]">Connected</span>
+        <div class="flex flex-col min-w-0">
+          <span class="font-title-sm text-[20px] font-semibold truncate transition-colors"
+                :class="connectedDevice ? 'text-[#e2e2e2]' : 'text-white/70'">
+            {{ connectedDevice ? connectedDevice.name : (favoriteDevice ? 'Connetti a ' + favoriteDevice.name : 'Nessun dispositivo') }}
+          </span>
+          <span class="font-body-md text-sm transition-colors"
+                :class="connectedDevice ? 'text-[#ddb7ff]' : 'text-red-400/70'">
+            {{ connectedDevice ? 'Connected' : 'Disconnesso' }}
+          </span>
         </div>
-        <div class="ml-auto">
+        <div class="ml-auto shrink-0" v-if="connectedDevice">
           <img :src="battery100" class="h-6 opacity-60" alt="Battery" />
         </div>
-      </div>
+      </button>
     </div>
 
   </div>
@@ -78,10 +89,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useBluetooth } from '@/composables/useBluetooth'
 import songPlaceholder from '@/assets/song-placeholder.png'
 import battery100 from '@/assets/battery/battery.100percent.svg'
 
 const router = useRouter()
+const { connectedDevice, favoriteDevice, connectToFavorite } = useBluetooth()
 const isPlaying = ref(false)
 const songProgress = ref(33)
 </script>

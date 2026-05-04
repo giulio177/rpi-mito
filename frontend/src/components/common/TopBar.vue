@@ -29,7 +29,7 @@
       class="absolute top-14 right-4 z-50 w-72 bg-[#1c1c1e]/40 backdrop-blur-3xl border border-white/10 rounded-3xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-4 text-white"
     >
       <!-- Wi-Fi -->
-      <button class="bg-white/5 hover:bg-white/10 border border-white/5 transition-colors rounded-2xl p-3 flex items-center gap-4 text-left">
+      <button @click="goToSettingsTab('wifi')" class="bg-white/5 hover:bg-white/10 border border-white/5 transition-colors rounded-2xl p-3 flex items-center gap-4 text-left">
         <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
           <span class="material-symbols-outlined text-blue-400">wifi</span>
         </div>
@@ -40,7 +40,7 @@
       </button>
 
       <!-- Bluetooth -->
-      <button class="bg-white/5 hover:bg-white/10 border border-white/5 transition-colors rounded-2xl p-3 flex items-center gap-4 text-left">
+      <button @click="goToSettingsTab('bluetooth')" class="bg-white/5 hover:bg-white/10 border border-white/5 transition-colors rounded-2xl p-3 flex items-center gap-4 text-left">
         <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
           <span class="material-symbols-outlined text-blue-400">bluetooth</span>
         </div>
@@ -73,6 +73,11 @@ const showControlCenter = ref(false)
 const goToSettings = () => {
   showControlCenter.value = false
   router.push('/settings')
+}
+
+const goToSettingsTab = (tab: string) => {
+  showControlCenter.value = false
+  router.push({ path: '/settings', query: { tab } })
 }
 // In futuro qui collegheremo i WebSocket per l'ora e i sensori
 </script>
