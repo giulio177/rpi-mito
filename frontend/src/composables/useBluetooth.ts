@@ -79,6 +79,14 @@ export function useBluetooth() {
     }
   }
 
+  const setDiscoverable = async (enabled: boolean) => {
+    try {
+      await fetch(`${API_BASE}/discoverable?enabled=${enabled}`, { method: 'POST' })
+    } catch (e) {
+      console.error('Errore set discoverable:', e)
+    }
+  }
+
   // Polling leggero ogni 5 secondi per lo stato della connessione
   onMounted(() => {
     fetchStatus()
@@ -96,7 +104,9 @@ export function useBluetooth() {
     scanDevices, 
     toggleConnection,
     toggleFavorite,
-    connectToFavorite
+    connectToFavorite,
+    setDiscoverable
   }
 }
+
 

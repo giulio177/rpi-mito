@@ -135,10 +135,19 @@
         <!-- Header Fisso -->
         <div class="flex items-center justify-between mb-6 shrink-0 pt-2">
           <h2 class="text-3xl font-semibold">Bluetooth</h2>
-          <div class="w-14 h-8 rounded-full bg-[#ddb7ff] p-1 cursor-pointer flex justify-end">
-            <div class="w-6 h-6 rounded-full bg-white shadow-md"></div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-medium text-white/50">{{ isDiscoverable ? 'Visibile' : 'Nascosto' }}</span>
+            <div 
+              @click="handleToggleDiscoverable"
+              class="w-14 h-8 rounded-full p-1 cursor-pointer transition-colors duration-300"
+              :class="isDiscoverable ? 'bg-[#ddb7ff] justify-end' : 'bg-white/10 justify-start'"
+              style="display: flex; align-items: center;"
+            >
+              <div class="w-6 h-6 rounded-full bg-white shadow-md"></div>
+            </div>
           </div>
         </div>
+
 
         <!-- Area Scrollabile Unica -->
         <div 
@@ -366,8 +375,19 @@ const {
   availableDevices, 
   isScanning: isScanningBt, 
   scanDevices: scanBluetooth,
-  toggleConnection: toggleBluetoothConnection
+  toggleConnection: toggleBluetoothConnection,
+  setDiscoverable
 } = useBluetooth()
+
+const isDiscoverable = ref(false)
+const handleToggleDiscoverable = async () => {
+  isDiscoverable.value = !isDiscoverable.value
+  await setDiscoverable(isDiscoverable.value)
+  if (isDiscoverable.value) {
+    // Torna non visibile automaticamente dopo 60 secondi
+    setTimeout(() => { isDiscoverable.value = false }, 60000)
+  }
+}
 
 // --- WI-FI ---
 const {

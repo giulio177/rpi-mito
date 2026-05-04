@@ -136,6 +136,18 @@ async def bt_disconnect():
     return {"error": "Bluetooth module not available"}
 
 
+@app.post("/api/bluetooth/discoverable")
+async def bt_discoverable(enabled: bool):
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.set_discoverable(enabled)
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+
 @app.get("/api/wifi/status")
 async def wifi_status():
     wifi = HALFactory.get_module("wifi")
@@ -151,7 +163,8 @@ async def wifi_networks():
         networks = wifi.scan_networks()
         if inspect.isawaitable(networks):
             networks = await networks
-        return networks
+        # Rinominiamo is_secure in isSecure per il frontend
+        return [{**n, "isSecure": n.get("is_secure", False)} for n in networks]
     return []
 
 
