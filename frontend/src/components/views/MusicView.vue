@@ -35,8 +35,11 @@
           <!-- Progress Bar -->
           <div class="w-full flex items-center gap-4">
             <span class="text-white/50 text-sm font-medium">1:24</span>
-            <div class="flex-1 h-2 bg-white/20 rounded-full overflow-hidden cursor-pointer">
-              <div class="h-full bg-[#ddb7ff] w-1/3 rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)]"></div>
+            <div class="relative flex-1 h-2 bg-white/20 rounded-full">
+              <!-- Parte Riempita -->
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <!-- Input Range Invisibile Interattivo -->
+              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
             <span class="text-white/50 text-sm font-medium">-2:40</span>
           </div>
@@ -101,8 +104,11 @@
           <!-- Progress Bar -->
           <div class="w-full flex items-center gap-3">
             <span class="text-white/50 text-xs font-medium">1:24</span>
-            <div class="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden cursor-pointer">
-              <div class="h-full bg-[#ddb7ff] w-1/3 rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)]"></div>
+            <div class="relative flex-1 h-1.5 bg-white/20 rounded-full">
+              <!-- Parte Riempita -->
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <!-- Input Range Invisibile Interattivo -->
+              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
             <span class="text-white/50 text-xs font-medium">-2:40</span>
           </div>
@@ -131,4 +137,5 @@ import { ref } from 'vue'
 import songPlaceholder from '@/assets/song-placeholder.png'
 
 const showLyrics = ref(false)
+const songProgress = ref(33)
 </script>

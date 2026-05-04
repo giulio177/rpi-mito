@@ -2,7 +2,7 @@
   <div class="flex-1 mt-4 mb-4 pb-28 z-10 grid grid-cols-12 gap-[24px] h-full min-h-0">
     
     <!-- Left Panel: Media Player -->
-    <div class="col-span-7 rounded-3xl overflow-hidden relative bg-white/5 backdrop-blur-2xl border border-white/10 group">
+    <div @click="router.push('/music')" class="col-span-7 rounded-3xl overflow-hidden relative bg-white/5 backdrop-blur-2xl border border-white/10 group cursor-pointer transition-all hover:border-white/20">
       <div class="absolute inset-0 bg-cover bg-center brightness-50 mix-blend-overlay group-hover:scale-105 transition-transform duration-1000 ease-out" :style="{ backgroundImage: `url(${songPlaceholder})` }"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-[#0e0e0e]/80 via-transparent to-[#0e0e0e]/30"></div>
       <div class="relative h-full flex flex-col justify-between p-[32px] z-10">
@@ -10,11 +10,14 @@
           <h2 class="font-display-lg text-[48px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#e2e2e2] mb-2">Midnight City</h2>
           <p class="font-title-sm text-[20px] font-semibold leading-[1.4] text-[#ddb7ff]">M83</p>
         </div>
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-6" @click.stop>
           <div class="w-full flex items-center gap-4">
             <span class="text-[#cfc2d6] text-sm font-medium">1:24</span>
-            <div class="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div class="h-full bg-[#ddb7ff] w-1/3 rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)]"></div>
+            <div class="relative flex-1 h-1.5 bg-white/20 rounded-full">
+              <!-- Parte Riempita -->
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <!-- Input Range Invisibile Interattivo -->
+              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
             <span class="text-[#cfc2d6] text-sm font-medium">-2:40</span>
           </div>
@@ -36,7 +39,7 @@
     <!-- Right Area: OBD & BT -->
     <div class="col-span-5 flex flex-col gap-[24px] h-full">
       <!-- OBD Panel -->
-      <div class="flex-1 rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 flex flex-row justify-around items-center p-6 relative overflow-hidden">
+      <div @click="router.push('/obd')" class="flex-1 rounded-3xl bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-2xl border border-white/10 flex flex-row justify-around items-center p-6 relative overflow-hidden cursor-pointer group">
         <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-[#ddb7ff]/20 rounded-full blur-[40px] z-0"></div>
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-blue-500/10 rounded-full blur-[40px] z-0"></div>
         <div class="flex flex-col items-center justify-center z-10">
@@ -74,8 +77,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import songPlaceholder from '@/assets/song-placeholder.png'
 import battery100 from '@/assets/battery/battery.100percent.svg'
 
+const router = useRouter()
 const isPlaying = ref(false)
+const songProgress = ref(33)
 </script>

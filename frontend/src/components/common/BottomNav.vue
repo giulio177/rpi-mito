@@ -20,8 +20,11 @@
       <!-- Right Audio Controls -->
       <div class="flex items-center gap-4 bg-black/20 rounded-full px-4 py-2 border border-white/5">
         <span @click="volume = Math.max(0, volume - 10)" class="material-symbols-outlined text-white/40 text-[20px] cursor-pointer hover:text-white transition-all duration-200 active:scale-75">volume_mute</span>
-        <div class="w-32 h-1 bg-white/10 rounded-full overflow-hidden">
-          <div class="h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.8)] transition-all duration-300 ease-out" :style="{ width: volume + '%' }"></div>
+        <div class="relative w-32 h-1 bg-white/10 rounded-full">
+          <!-- Parte Riempita -->
+          <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.8)] pointer-events-none" :style="{ width: volume + '%' }"></div>
+          <!-- Input Range Invisibile Interattivo -->
+          <input type="range" min="0" max="100" v-model="volume" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
         </div>
         <span @click="volume = Math.min(100, volume + 10)" class="material-symbols-outlined text-[#ddb7ff] text-[20px] cursor-pointer hover:brightness-125 transition-all duration-200 active:scale-75">volume_up</span>
       </div>
