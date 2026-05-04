@@ -54,7 +54,7 @@ apt install -y \
   git python3-venv python3-pip \
   ffmpeg \
   pulseaudio pulseaudio-module-bluetooth alsa-utils \
-  bluez bluez-tools pi-bluetooth bluez-firmware \
+  bluez bluez-tools pi-bluetooth bluez-firmware bluez-alsa-utils \
   libdbus-1-dev libglib2.0-dev python3-dev \
   build-essential pkg-config \
   cage chromium \
@@ -109,10 +109,12 @@ if ! grep -q "enable_uart=1" "$CONFIG_FILE"; then echo "enable_uart=1" >> "$CONF
 command -v rfkill &> /dev/null && rfkill unblock bluetooth || true
 systemctl enable hciuart || true
 
-# Configurazione PulseAudio BT
+# Configurazione PulseAudio BT (Sink + Source)
 cat >/etc/pulse/default.pa <<'EOF'
+.include /etc/pulse/default.pa
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
+load-module module-switch-on-connect
 EOF
 
 # Configurazione BlueZ (main.conf)
@@ -121,7 +123,8 @@ if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/m
 sed -i '/Class =/d' /etc/bluetooth/main.conf
 sed -i '/DiscoverableTimeout =/d' /etc/bluetooth/main.conf
 sed -i '/Name =/d' /etc/bluetooth/main.conf
-sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 0\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-fr' /etc/bluetooth/main.conf
+sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 120\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-fr' /etc/bluetooth/main.conf
+
 
 
 
