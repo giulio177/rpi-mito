@@ -63,11 +63,14 @@
           <div class="h-2 shrink-0"></div>
 
           <!-- Discoverable Row -->
-          <div class="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl shrink-0">
+          <div @click="renameRaspberry" class="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl shrink-0 cursor-pointer hover:bg-white/10 transition-colors">
             <div class="flex flex-col">
-              <span class="text-lg font-medium">Visibile come "Raspberry Pi"</span>
+              <span class="text-lg font-medium">Visibile come "{{ raspberryName }}"</span>
               <span class="text-sm text-white/50">Dispositivi vicini possono rilevare questo sistema.</span>
             </div>
+            <button class="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors text-white/70">
+              <span class="material-symbols-outlined text-[20px]">edit</span>
+            </button>
           </div>
           
           <!-- I tuoi dispositivi -->
@@ -226,6 +229,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useBluetooth } from '@/composables/useBluetooth'
+import { useKeyboard } from '@/composables/useKeyboard'
 
 const route = useRoute()
 const activeTab = ref(route.query.tab ? String(route.query.tab) : 'general')
@@ -238,6 +242,17 @@ const activeMenuId = ref<number | string | null>(null)
 
 const openMenu = (id: number | string) => {
   activeMenuId.value = activeMenuId.value === id ? null : id
+}
+
+// --- RASPBERRY NAME ---
+const { openKeyboard } = useKeyboard()
+const raspberryName = ref('Raspberry Pi')
+
+const renameRaspberry = async () => {
+  const newName = await openKeyboard(raspberryName.value, 'Rinomina Dispositivo')
+  if (newName !== null && newName.trim() !== '') {
+    raspberryName.value = newName.trim()
+  }
 }
 
 // --- BLUETOOTH DATA ---

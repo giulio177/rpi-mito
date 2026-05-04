@@ -22,6 +22,8 @@
       <div class="absolute bottom-6 left-0 w-full z-50 pointer-events-none px-6">
         <BottomNav class="pointer-events-auto" />
       </div>
+      <!-- Virtual Keyboard Overlay -->
+      <VirtualKeyboard v-if="isOpen" />
     </div>
   </div>
 </template>
@@ -30,8 +32,11 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import TopBar from '@/components/common/TopBar.vue'
 import BottomNav from '@/components/common/BottomNav.vue'
+import VirtualKeyboard from '@/components/common/VirtualKeyboard.vue'
 import songPlaceholder from '@/assets/song-placeholder.png'
+import { useKeyboard } from '@/composables/useKeyboard'
 
+const { isOpen } = useKeyboard()
 const scale = ref(1)
 
 const updateScale = () => {

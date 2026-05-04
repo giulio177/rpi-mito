@@ -57,7 +57,7 @@
             </button>
 
             <!-- Pulsante Rinomina -->
-            <button class="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/10 text-white transition-colors text-left">
+            <button @click="handleRename(song)" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/10 text-white transition-colors text-left">
               <span class="material-symbols-outlined text-[20px]">edit</span>
               <span class="font-medium text-sm">Rinomina</span>
             </button>
@@ -65,7 +65,7 @@
             <div class="h-[1px] w-full bg-white/10 my-1"></div>
 
             <!-- Pulsante Elimina -->
-            <button class="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left">
+            <button @click="handleDelete(song)" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left">
               <span class="material-symbols-outlined text-[20px]">delete</span>
               <span class="font-medium text-sm">Elimina</span>
             </button>
@@ -79,7 +79,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useKeyboard } from '@/composables/useKeyboard'
 import songPlaceholder from '@/assets/song-placeholder.png'
+
+const { openKeyboard } = useKeyboard()
 
 const songs = ref([
   { id: 1, title: 'Midnight City', artist: 'M83', duration: '4:04', coverUrl: songPlaceholder },
@@ -90,4 +93,17 @@ const songs = ref([
 ])
 
 const activeMenuId = ref<number | string | null>(null)
+
+const handleRename = async (song: any) => {
+  activeMenuId.value = null
+  const newTitle = await openKeyboard(song.title, 'Rinomina Canzone')
+  if (newTitle !== null && newTitle.trim() !== '') {
+    song.title = newTitle.trim()
+  }
+}
+
+const handleDelete = (song: any) => {
+  activeMenuId.value = null
+  songs.value = songs.value.filter(s => s.id !== song.id)
+}
 </script>
