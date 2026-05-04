@@ -22,28 +22,41 @@ A next-generation, ultra-premium Infotainment System interface designed specific
 - **Routing:** Vue Router
 - **Typography & Icons:** Space Grotesk, Inter, and Google Material Symbols.
 
-## 🚀 Getting Started
 
-### Prerequisites
-Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
+## 🚀 Installazione su Raspberry Pi (Headless Setup)
 
-### Installation
+Questa guida presuppone che tu abbia già flashato **Raspberry Pi OS Lite (64-bit)** sulla tua scheda SD e che tu sia connesso al Raspberry Pi tramite SSH.
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+### 1. Aggiorna il sistema e installa Git
+Per prima cosa, assicurati che la lista dei pacchetti sia aggiornata e installa `git` (necessario per scaricare il codice sorgente):
+```bash
+sudo apt update && sudo apt install git -y
+```
+2. Clona il Repository
+Scarica il progetto direttamente nella cartella Home (~) del tuo utente:
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+cd ~
+git clone [https://github.com/giulio177/rpi-mito.git](https://github.com/giulio177/rpi-mito.git)
+```
 
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-   *Alternatively, run `./start_dev.sh` from the project root to spin up both the backend and frontend simultaneously.*
+3. Avvia lo Script di Installazione Automatico
+Entra nella cartella appena clonata e rendi eseguibile lo script di installazione. Questo script si occuperà di configurare Kiosk mode, Bluetooth, PulseAudio, l'ambiente Python e i servizi di sistema:
+
+```bash
+cd MITO-fr
+chmod +x install_mito.sh
+sudo ./install_mito.sh
+```
+☕ Mettiti comodo: Lo script impiegherà alcuni minuti per scaricare tutte le dipendenze, compilare l'ambiente virtuale e configurare l'hardware dell'auto.
+
+4. Riavvio Finale
+Quando lo script avrà terminato con successo, ti chiederà di riavviare il sistema. Esegui:
+
+```bash
+sudo reboot
+```
+Al riavvio, il Raspberry Pi farà partire automaticamente il server backend (FastAPI) e l'interfaccia grafica a tutto schermo (tramite Chromium in Kiosk Mode) collegata allo schermo fisico!
 
 ## 📂 Project Structure
 
