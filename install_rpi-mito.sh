@@ -140,19 +140,17 @@ systemctl enable --now bt-auto-pair.service
 ###############################################################################
 # 5) Gruppi, Seatd, Virtual Environment e Build Frontend
 ###############################################################################
-# Aggiungi l'utente ai gruppi necessari per Wayland/Cage
+echo ">>> Configurazione permessi hardware e gruppi..."
 usermod -aG video,input,audio,bluetooth,tty,render "$USER_NAME" || true
 
 # Abilita seatd per i permessi del compositor Wayland
 systemctl enable --now seatd || true
-# Aggiungi l'utente al gruppo seat (necessario per cage)
 gpasswd -a "$USER_NAME" seat || true
 
 # --- 5.1 Pulizia cache Python (evita errori "bad magic number" da file .pyc del Mac) ---
 echo ">>> Pulizia cache Python..."
 find "$PROJECT_DIR" -name '*.pyc' -delete
 find "$PROJECT_DIR" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-echo ">>> Cache Python rimossa."
 
 # --- 5.2 Build del Frontend ---
 echo ">>> Build Frontend (npm install && npm run build)..."
@@ -162,7 +160,6 @@ sudo -u "$USER_NAME" bash -lc "
   npm install
   npm run build
 "
-echo ">>> Frontend compilato in frontend/dist."
 
 # --- 5.3 Setup Virtual Environment Python ---
 echo ">>> Setup Virtual Environment Python..."
@@ -176,11 +173,11 @@ sudo -u "$USER_NAME" bash -lc "
 "
 
 ###############################################################################
-# 6) Creazione Servizi Systemd (NOVITÀ: Split Backend / Frontend)
+# 6) Creazione Servizi Systemd
 ###############################################################################
 echo ">>> Creazione Servizi Systemd..."
 
-# --- 6.1 BACKEND SERVICE (FastAPI) ---
+# --- 6.1 BACKEND SERVICE ---
 cat >/etc/systemd/system/mito-backend.service <<EOF
 [Unit]
 Description=MITO-fr FastAPI Backend
@@ -190,11 +187,9 @@ After=network.target bluetooth.service pulseaudio.service
 Type=simple
 User=$USER_NAME
 Group=$USER_NAME
-# WorkingDirectory punta a backend/ così uvicorn trova main:app senza prefissi
 WorkingDirectory=$PROJECT_DIR/backend
 Environment=PYTHONUNBUFFERED=1
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_UID/bus
-
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
@@ -203,7 +198,7 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-# --- 6.2 FRONTEND KIOSK SERVICE (Cage + Chromium) ---
+# --- 6.2 FRONTEND KIOSK SERVICE ---
 cat >/etc/systemd/system/mito-kiosk.service <<EOF
 [Unit]
 Description=MITO-fr Web UI Kiosk
@@ -218,16 +213,9 @@ WorkingDirectory=$PROJECT_DIR
 Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=HOME=/home/$USER_NAME
-
-# Avvia Chromium in kiosk mode senza popup traduttore
 ExecStart=/usr/bin/cage -- /usr/bin/chromium \
-  --kiosk \
-  --no-sandbox \
-  --disable-infobars \
-  --start-maximized \
-  --overscroll-history-navigation=0 \
-  --disable-translate \
-  --disable-features=Translate \
+  --kiosk --no-sandbox --disable-infobars --start-maximized \
+  --overscroll-history-navigation=0 --disable-translate --disable-features=Translate \
   http://localhost:8000
 Restart=always
 RestartSec=5
@@ -236,54 +224,43 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable mito-backend.service
-systemctl enable mito-kiosk.service
-
-###############################################################################
-# 6.3) Chromium Policy (disabilita popup traduttore e altre UI indesiderate)
-###############################################################################
+# --- 6.3 Chromium Policy (No Translate) ---
 mkdir -p /etc/chromium/policies/managed
 cat >/etc/chromium/policies/managed/mito_kiosk.json <<'EOF'
 {
   "TranslateEnabled": false,
   "BrowserSignin": 0,
   "SyncDisabled": true,
-  "MetricsReportingEnabled": false,
-  "DefaultBrowserSettingEnabled": false
+  "MetricsReportingEnabled": false
 }
 EOF
-echo ">>> Policy Chromium configurata."
+
+systemctl daemon-reload
+systemctl enable mito-backend.service mito-kiosk.service
 
 ###############################################################################
-# 7) Secure Shutdown & Cleanup
+# 7) Permessi Sudo e update.sh
 ###############################################################################
-if ! grep -q "disable_splash=1" "$CONFIG_FILE"; then echo "disable_splash=1" >> "$CONFIG_FILE"; fi
-if ! grep -q "boot_delay=0" "$CONFIG_FILE"; then echo "boot_delay=0" >> "$CONFIG_FILE"; fi
-if ! grep -q "gpio-poweroff" "$CONFIG_FILE"; then
-    echo "dtoverlay=gpio-poweroff,gpiopin=17,active_low=1" >> "$CONFIG_FILE"
-fi
-
-###############################################################################
-# 8) Permessi Sudo per il Backend (Update, Spegnimento, Riavvio)
-###############################################################################
-echo ">>> Configurazione permessi sudo per $USER_NAME..."
+echo ">>> Configurazione update.sh e permessi sudo..."
 
 # Rendi eseguibile lo script di update
 chmod +x "$PROJECT_DIR/update.sh"
 
 cat >/etc/sudoers.d/mito_permissions <<EOF
-# MITO-fr: permessi per operazioni di sistema senza password
+# Permessi per l'infotainment senza password
 $USER_NAME ALL=(ALL) NOPASSWD: $PROJECT_DIR/update.sh
-$USER_NAME ALL=(ALL) NOPASSWD: /sbin/poweroff
-$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot
-$USER_NAME ALL=(ALL) NOPASSWD: /bin/systemctl restart mito-kiosk.service
-$USER_NAME ALL=(ALL) NOPASSWD: /bin/systemctl restart mito-backend.service
+$USER_NAME ALL=(ALL) NOPASSWD: /usr/sbin/reboot
+$USER_NAME ALL=(ALL) NOPASSWD: /usr/sbin/poweroff
+$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mito-kiosk.service
+$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mito-backend.service
 EOF
 chmod 0440 /etc/sudoers.d/mito_permissions
-echo "Permessi sudo configurati."
 
+# 8) Boot & Splash Cleanup
+if ! grep -q "disable_splash=1" "$CONFIG_FILE"; then echo "disable_splash=1" >> "$CONFIG_FILE"; fi
+if ! grep -q "boot_delay=0" "$CONFIG_FILE"; then echo "boot_delay=0" >> "$CONFIG_FILE"; fi
 
-echo ">>> INSTALLAZIONE COMPLETATA."
-echo "I servizi 'mito-backend' e 'mito-kiosk' sono installati."
-echo "Ora esegui: sudo reboot"
+echo "=========================================="
+echo " SETUP COMPLETATO CON SUCCESSO"
+echo " Ora esegui: sudo reboot"
+echo "=========================================="
