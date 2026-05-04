@@ -22,7 +22,7 @@ export function useBluetooth() {
   const connectedDevice = computed(() => pairedDevices.value.find(d => d.isConnected))
   const favoriteDevice = computed(() => pairedDevices.value.find(d => d.isFavorite) || pairedDevices.value[0])
 
-  const updateStatus = async () => {
+  const fetchStatus = async () => {
     try {
       const res = await fetch(`${API_BASE}/status`)
       const data = await res.json()
@@ -31,7 +31,7 @@ export function useBluetooth() {
         isPowered.value = data.is_powered
         isDiscoverable.value = data.is_discoverable
         
-        pairedDevices.value = data.paired_devices.map((d: any) => ({
+        pairedDevices.value = (data.paired_devices || []).map((d: any) => ({
           ...d,
           isConnected: d.id === data.connected_device_id,
           isFavorite: d.id === localStorage.getItem('bt_favorite')
@@ -101,6 +101,7 @@ export function useBluetooth() {
   const setDiscoverable = async (enabled: boolean) => {
     try {
       await fetch(`${API_BASE}/discoverable?enabled=${enabled}`, { method: 'POST' })
+      await fetchStatus()
     } catch (e) {
       console.error('Errore set discoverable:', e)
     }
@@ -114,6 +115,9 @@ export function useBluetooth() {
   })
 
   return { 
+    adapterName,
+    isPowered,
+    isDiscoverable,
     pairedDevices, 
     availableDevices, 
     isScanning,
@@ -127,5 +131,3 @@ export function useBluetooth() {
     setDiscoverable
   }
 }
-
-
