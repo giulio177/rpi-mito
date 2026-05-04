@@ -22,7 +22,7 @@
             <button class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
               <span class="material-symbols-outlined text-[28px] text-[#e2e2e2]">skip_previous</span>
             </button>
-            <button @click="isPlaying = !isPlaying" class="w-20 h-20 flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
+            <button @click="isPlaying = !isPlaying" class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
               <span class="material-symbols-outlined filled text-[40px]">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
             </button>
             <button class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
@@ -64,7 +64,7 @@
           <span class="font-body-md text-sm text-[#ddb7ff]">Connected</span>
         </div>
         <div class="ml-auto">
-          <span class="material-symbols-outlined text-[#cfc2d6] text-[24px]">battery_4_bar</span>
+          <img :src="battery100" class="h-6 opacity-60" alt="Battery" />
         </div>
       </div>
     </div>
@@ -75,6 +75,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import songPlaceholder from '@/assets/song-placeholder.png'
+import battery100 from '@/assets/battery/battery.100percent.svg'
 
 const isPlaying = ref(false)
 </script>

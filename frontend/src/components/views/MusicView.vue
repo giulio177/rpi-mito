@@ -1,8 +1,8 @@
 <template>
-  <div class="w-full h-full relative flex p-8 gap-10 text-white">
+  <div class="w-full h-full relative flex px-8 pt-8 pb-2 gap-10 text-white min-h-0">
     
     <!-- Action Bar Fissa (Memoria Muscolare) -->
-    <div class="absolute top-6 right-6 z-50 flex gap-4">
+    <div class="absolute top-2 right-2 z-50 flex gap-4">
       <button @click="showLyrics = !showLyrics" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shadow-lg">
         <span class="material-symbols-outlined text-[24px]" :class="showLyrics ? 'text-[#ddb7ff]' : 'text-white/70'">lyrics</span>
       </button>
@@ -22,10 +22,10 @@
       </div>
 
       <!-- Destra: Info e Controlli -->
-      <div class="flex-1 flex flex-col justify-between h-full pt-16 pb-4 min-w-0 z-10 relative">
+      <div class="flex-1 flex flex-col justify-between h-full pt-4 pb-4 min-w-0 z-10 relative">
         
         <!-- Titolo e Artista -->
-        <div>
+        <div class="pr-40">
           <h1 class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 line-clamp-1">Midnight City</h1>
           <p class="font-title-sm text-[28px] font-medium text-[#ddb7ff]">M83</p>
         </div>
@@ -51,7 +51,7 @@
               <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
                 <span class="material-symbols-outlined text-[32px] text-white">skip_previous</span>
               </button>
-              <button class="w-20 h-20 flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
+              <button class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
                 <span class="material-symbols-outlined filled text-[48px]">pause</span>
               </button>
               <button class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
@@ -83,7 +83,7 @@
       <div class="w-[1px] h-[80%] my-auto bg-white/10 mx-6 shrink-0 z-10 relative"></div>
 
       <!-- Destra: Mini Player -->
-      <div class="flex-1 flex flex-col items-center justify-center h-full pt-16 gap-6 relative z-10">
+      <div class="flex-1 flex flex-col items-center justify-center h-full pt-12 gap-6 relative z-10">
         
         <!-- Info (Cover, Title, Artist) -->
         <div class="flex flex-col items-center gap-4">
