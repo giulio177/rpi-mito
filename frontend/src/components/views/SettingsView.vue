@@ -72,9 +72,8 @@
           </button>
 
           <!-- Feedback aggiornamento -->
-          <div v-if="updateMessage" class="rounded-xl px-4 py-3 text-sm font-medium"
-               :class="updateSuccess ? 'bg-green-500/15 border border-green-500/30 text-green-400' : 'bg-red-500/15 border border-red-500/30 text-red-400'">
-            {{ updateMessage }}
+          <div v-if="updateLog" class="rounded-xl px-4 py-3 text-sm font-mono bg-white/5 border border-white/10 text-white/50 whitespace-pre-wrap">
+            {{ updateLog }}
           </div>
         </div>
 
@@ -102,7 +101,7 @@
           <!-- Riavvia sistema -->
           <button
             id="btn-reboot-system"
-            @click="confirmAction('reboot')"
+            @click="triggerAction('reboot')"
             :disabled="isPowerBusy"
             class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-white/5 hover:bg-orange-500/10 border border-white/10 hover:border-orange-500/30 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
           >
@@ -116,7 +115,7 @@
           <!-- Spegni -->
           <button
             id="btn-shutdown"
-            @click="confirmAction('shutdown')"
+            @click="triggerAction('shutdown')"
             :disabled="isPowerBusy"
             class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
           >
@@ -300,43 +299,41 @@
     </div>
   </div>
 
-        <!-- MODAL DI AGGIORNAMENTO PRONTO -->
-        <Teleport to="body">
-          <Transition name="modal-fade">
-            <div v-if="showUpdateModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
-              <div class="absolute inset-0 bg-black/60 backdrop-blur-md" @click="showUpdateModal = false"></div>
-              <div class="relative bg-[#1c1c1e] border border-white/10 w-[500px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95 duration-300">
-                <div class="w-20 h-20 bg-[#ddb7ff]/20 rounded-full flex items-center justify-center mx-auto">
-                  <span class="material-symbols-outlined text-[#ddb7ff] text-4xl">system_update</span>
-                </div>
-                <div class="text-center">
-                  <h3 class="text-2xl font-bold text-white mb-2">Aggiornamento Pronto</h3>
-                  <p class="text-white/60">
-                    Il nuovo codice è stato scaricato. Per applicare le modifiche è necessario riavviare:
-                    <span v-if="updateManifest.restart_backend" class="block font-bold text-[#ddb7ff] mt-2">• Servizi Backend</span>
-                    <span v-if="updateManifest.restart_kiosk" class="block font-bold text-[#ddb7ff]">• Interfaccia Grafica</span>
-                  </p>
-                </div>
-                <div class="flex flex-col gap-3">
-                  <button @click="applyUpdateRestarts" class="w-full py-4 bg-[#ddb7ff] text-[#490080] font-bold rounded-2xl active:scale-95 transition-transform">
-                    Riavvia e Applica
-                  </button>
-                  <button @click="showUpdateModal = false" class="w-full py-4 bg-white/5 text-white/50 font-medium rounded-2xl">
-                    Più tardi
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Transition>
-        </Teleport>
+  <!-- MODAL DI AGGIORNAMENTO PRONTO -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showUpdateModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-md" @click="showUpdateModal = false"></div>
+        <div class="relative bg-[#1c1c1e] border border-white/10 w-[500px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 animate-in zoom-in-95 duration-300">
+          <div class="w-20 h-20 bg-[#ddb7ff]/20 rounded-full flex items-center justify-center mx-auto">
+            <span class="material-symbols-outlined text-[#ddb7ff] text-4xl">system_update</span>
+          </div>
+          <div class="text-center">
+            <h3 class="text-2xl font-bold text-white mb-2">Aggiornamento Pronto</h3>
+            <p class="text-white/60">
+              Il nuovo codice è stato scaricato. Per applicare le modifiche è necessario riavviare:
+              <span v-if="updateManifest.restart_backend" class="block font-bold text-[#ddb7ff] mt-2">• Servizi Backend</span>
+              <span v-if="updateManifest.restart_kiosk" class="block font-bold text-[#ddb7ff]">• Interfaccia Grafica</span>
+            </p>
+          </div>
+          <div class="flex flex-col gap-3">
+            <button @click="applyUpdateRestarts" class="w-full py-4 bg-[#ddb7ff] text-[#490080] font-bold rounded-2xl active:scale-95 transition-transform">
+              Riavvia e Applica
+            </button>
+            <button @click="showUpdateModal = false" class="w-full py-4 bg-white/5 text-white/50 font-medium rounded-2xl">
+              Più tardi
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 
-        <!-- MODAL DI CONFERMA -->
+  <!-- MODAL DI CONFERMA -->
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="showConfirmModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
-        <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showConfirmModal = false"></div>
-        <!-- Card -->
         <div class="relative bg-[#1c1c1e] border border-white/10 rounded-3xl p-8 w-80 flex flex-col gap-6 shadow-2xl">
           <div class="flex flex-col items-center gap-3 text-center">
             <span class="material-symbols-outlined text-[48px]"
@@ -414,7 +411,6 @@ const handleToggleDiscoverable = async () => {
   isDiscoverable.value = !isDiscoverable.value
   await setDiscoverable(isDiscoverable.value)
   if (isDiscoverable.value) {
-    // Torna non visibile automaticamente dopo 60 secondi
     setTimeout(() => { isDiscoverable.value = false }, 60000)
   }
 }
@@ -440,7 +436,7 @@ const handleWifiConnect = async (net: any) => {
   let password = ''
   if (net.isSecure) {
     const res = await openKeyboard('', `Password per ${net.ssid}`)
-    if (res === null) return // Annullato
+    if (res === null) return 
     password = res
   }
 
@@ -455,64 +451,50 @@ const handleWifiConnect = async (net: any) => {
 
 const API = 'http://localhost:8000'
 
-const systemVersion = ref('...')
+const systemVersion = ref('v1.0')
 const systemCommit  = ref('...')
 const systemBranch  = ref('...')
 const isUpdating    = ref(false)
-const updateMessage = ref('')
-const updateSuccess = ref(false)
 const isPowerBusy   = ref(false)
-const updateLog = ref('')
+const updateLog     = ref('')
 
-// Confirmation modal state
+// Modal di conferma generico
 const showConfirmModal = ref(false)
-const confirmTitle = ref('')
-const confirmMessage = ref('')
-const confirmActionRef = ref<(() => void) | null>(null)
 const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
 
-// --- UPDATE MODAL ---
+// Modal di aggiornamento (Manifesto)
 const showUpdateModal = ref(false)
-const updateManifest = ref({ restart_backend: false, restart_kiosk: false, message: '' })
-
-const openConfirm = (title: string, message: string, action: () => void) => {
-  confirmTitle.value = title
-  confirmMessage.value = message
-  confirmActionRef.value = action
-  showConfirmModal.value = true
-}
+const updateManifest = ref({ restart_backend: false, restart_kiosk: false })
 
 onMounted(async () => {
   try {
     const res = await fetch(`${API}/api/system/version`)
     const data = await res.json()
-    systemVersion.value = data.version ? `v${data.version}` : 'N/D'
-    systemCommit.value  = data.commit  ?? 'N/D'
-    systemBranch.value  = data.branch  ?? 'N/D'
-  } catch {
-    systemVersion.value = 'N/D'
-  }
+    systemVersion.value = data.version ? `v${data.version}` : 'v1.0'
+    systemCommit.value  = data.commit?.substring(0, 7) || 'N/D'
+    systemBranch.value  = data.branch || 'main'
+  } catch (e) {}
 })
 
 const handleUpdate = async () => {
   isUpdating.value = true
   updateLog.value = 'Ricerca aggiornamenti in corso...'
   try {
-    const res = await fetch('http://localhost:8000/api/system/update', { method: 'POST' })
+    const res = await fetch(`${API}/api/system/update`, { method: 'POST' })
     const data = await res.json()
     if (data.success) {
-      updateLog.value = data.message
+      updateLog.value = '✓ Aggiornamento scaricato con successo.'
       if (data.needs_restart && (data.needs_restart.restart_backend || data.needs_restart.restart_kiosk)) {
         updateManifest.value = data.needs_restart
         showUpdateModal.value = true
       } else {
-        updateLog.value += '\n\nSistema già aggiornato.'
+        updateLog.value += '\nSistema già aggiornato.'
       }
     } else {
-      updateLog.value = 'Aggiornamento fallito: ' + data.message
+      updateLog.value = '✕ Errore: ' + data.message
     }
   } catch (e) {
-    updateLog.value = 'Errore di rete durante l\'aggiornamento.'
+    updateLog.value = '✕ Errore di connessione al sistema.'
   } finally {
     isUpdating.value = false
   }
@@ -520,25 +502,14 @@ const handleUpdate = async () => {
 
 const applyUpdateRestarts = async () => {
   showUpdateModal.value = false
-  if (updateManifest.value.restart_backend) {
-    await fetch('http://localhost:8000/api/system/reboot-app', { method: 'POST' })
-  } else if (updateManifest.value.restart_kiosk) {
-    // Se solo il kiosk deve riavviarsi, il backend può farlo direttamente
-    await fetch('http://localhost:8000/api/system/reboot-app', { method: 'POST' })
-  }
-}
-
-const handleRebootApp = async () => {
   isPowerBusy.value = true
   try {
     await fetch(`${API}/api/system/reboot-app`, { method: 'POST' })
-  } finally {
-    isPowerBusy.value = false
-  }
+  } catch (e) {}
 }
 
-const confirmAction = (action: 'reboot' | 'shutdown') => {
-  pendingAction.value  = action
+const triggerAction = (action: 'reboot' | 'shutdown') => {
+  pendingAction.value = action
   showConfirmModal.value = true
 }
 
@@ -551,8 +522,17 @@ const executePendingAction = async () => {
       : `${API}/api/system/reboot`
     await fetch(endpoint, { method: 'POST' })
   } finally {
-    isPowerBusy.value  = false
+    isPowerBusy.value = false
     pendingAction.value = null
+  }
+}
+
+const handleRebootApp = async () => {
+  isPowerBusy.value = true
+  try {
+    await fetch(`${API}/api/system/reboot-app`, { method: 'POST' })
+  } finally {
+    isPowerBusy.value = false
   }
 }
 </script>
