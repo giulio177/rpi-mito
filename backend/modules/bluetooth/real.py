@@ -55,13 +55,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def _run_bluetoothctl(self, command: str) -> str:
         try:
-            cmd_args = ["bluetoothctl"] + command.split()
+            # We run bluetoothctl and write the command to stdin (works on all versions and avoids CLI constraints)
             proc = await asyncio.create_subprocess_exec(
-                *cmd_args,
+                "bluetoothctl",
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            stdout, stderr = await proc.communicate()
+            stdout, stderr = await proc.communicate(input=f"{command}\nexit\n".encode())
             if proc.returncode == 0:
                 return stdout.decode().strip()
             else:
@@ -79,13 +80,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
         while True:
             try:
                 # 1. Query connected devices from bluetoothctl directly (very reliable)
-                proc_bt = await asyncio.create_subprocess_exec(
-                    "bluetoothctl", "devices", "Connected",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout_bt, stderr_bt = await proc_bt.communicate()
-                bt_output = stdout_bt.decode().strip()
+                bt_output = await self._run_bluetoothctl("devices Connected")
                 
                 conn_address = None
                 conn_name = None
