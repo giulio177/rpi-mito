@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { AudioStatus, TrackInfo, PlaybackStatus } from '@/types'
-import api from '@/services/api'
+import api, { API_BASE_URL } from '@/services/api'
 
 export const useAudioStore = defineStore('audio', () => {
   const volume = ref(50)
@@ -185,7 +185,7 @@ export const useAudioStore = defineStore('audio', () => {
     
     // Play new song
     localCurrentSong.value = song
-    htmlAudio.value.src = `http://localhost:8000/library/${song.filename}`
+    htmlAudio.value.src = `${API_BASE_URL}/library/${song.filename}`
     htmlAudio.value.play()
     isLocalPlaying.value = true
   }
@@ -221,6 +221,38 @@ export const useAudioStore = defineStore('audio', () => {
     localProgress.value = percent
   }
 
+  async function playBluetooth(): Promise<void> {
+    try {
+      await api.playBluetooth()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to play Bluetooth'
+    }
+  }
+
+  async function pauseBluetooth(): Promise<void> {
+    try {
+      await api.pauseBluetooth()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to pause Bluetooth'
+    }
+  }
+
+  async function nextBluetooth(): Promise<void> {
+    try {
+      await api.nextBluetooth()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to skip Bluetooth track'
+    }
+  }
+
+  async function prevBluetooth(): Promise<void> {
+    try {
+      await api.previousBluetooth()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to rewind Bluetooth track'
+    }
+  }
+
   return {
     volume,
     muted,
@@ -249,6 +281,12 @@ export const useAudioStore = defineStore('audio', () => {
     playNext,
     playPrevious,
     toggleShuffle,
-    toggleRepeat
+    toggleRepeat,
+    // Bluetooth controls
+    playBluetooth,
+    pauseBluetooth,
+    nextBluetooth,
+    prevBluetooth
   }
-})
+}
+)

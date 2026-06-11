@@ -39,3 +39,23 @@ class BluetoothModuleInterface(BaseModule):
     def get_battery_level(self) -> Optional[int]:
         """Get battery level of connected device"""
         pass
+
+    def get_media_status(self) -> Dict[str, Any]:
+        """Get media player status of connected device"""
+        return {"playback_status": "stopped", "current_track": None}
+
+    def player_play(self) -> bool:
+        """Play current track on connected device"""
+        return False
+
+    def player_pause(self) -> bool:
+        """Pause current track on connected device"""
+        return False
+
+    def player_next(self) -> bool:
+        """Skip to next track on connected device"""
+        return False
+
+    def player_previous(self) -> bool:
+        """Go to previous track on connected device"""
+        return False

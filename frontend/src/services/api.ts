@@ -8,7 +8,17 @@ import type {
   ApiResponse,
 } from '@/types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const getApiUrl = (): string => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.host}`
+  }
+  return 'http://localhost:8000'
+}
+
+export const API_BASE_URL = getApiUrl()
 
 class ApiClient {
   private client: AxiosInstance
@@ -95,6 +105,26 @@ class ApiClient {
 
   async disconnectWiFi(): Promise<ApiResponse<void>> {
     const response = await this.client.post<ApiResponse<void>>('/api/wifi/disconnect')
+    return response.data
+  }
+
+  async playBluetooth(): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/play')
+    return response.data
+  }
+
+  async pauseBluetooth(): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/pause')
+    return response.data
+  }
+
+  async nextBluetooth(): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/next')
+    return response.data
+  }
+
+  async previousBluetooth(): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/previous')
     return response.data
   }
 }

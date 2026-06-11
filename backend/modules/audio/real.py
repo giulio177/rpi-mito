@@ -30,12 +30,29 @@ class RealAudioModule(AudioModuleInterface):
         return True
 
     def get_status(self) -> Dict[str, Any]:
+        from core.hal import HALFactory
+        
+        current_source = "system"
+        current_track = None
+        playback_status = "stopped"
+        
+        try:
+            bt = HALFactory.get_module("bluetooth")
+            if bt and bt.get_status().get("connected"):
+                bt_media = bt.get_media_status()
+                if bt_media.get("current_track"):
+                    current_source = "bluetooth"
+                    current_track = bt_media.get("current_track")
+                    playback_status = bt_media.get("playback_status", "stopped")
+        except Exception as e:
+            print(f"[RealAudio] Error checking Bluetooth status: {e}")
+
         return {
             "volume": self._state.volume,
             "muted": self._state.muted,
-            "playback_status": self._state.playback_status,
-            "current_track": self._state.current_track,
-            "source": self._state.current_source,
+            "playback_status": playback_status,
+            "current_track": current_track,
+            "source": current_source,
         }
 
     async def _sync_volume(self):

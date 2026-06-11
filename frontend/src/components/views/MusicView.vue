@@ -37,9 +37,9 @@
             <span class="text-white/50 text-sm font-medium w-12 text-right">{{ currentTimeText }}</span>
             <div class="relative flex-1 h-2 bg-white/20 rounded-full">
               <!-- Parte Riempita -->
-              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: localProgress + '%' }"></div>
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: progressPercent + '%' }"></div>
               <!-- Input Range Invisibile Interattivo -->
-              <input type="range" min="0" max="100" v-model.number="localProgress" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+              <input type="range" min="0" max="100" v-model.number="progressPercent" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
             <span class="text-white/50 text-sm font-medium w-12 text-left">{{ remainingTimeText }}</span>
           </div>
@@ -51,13 +51,13 @@
             </button>
             
             <div class="flex items-center gap-6">
-              <button @click="audioStore.playPrevious()" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+              <button @click="handlePrev" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
                 <span class="material-symbols-outlined text-[32px] text-white">skip_previous</span>
               </button>
               <button @click="togglePlay" class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
-                <span class="material-symbols-outlined filled text-[48px]">{{ isLocalPlaying ? 'pause' : 'play_arrow' }}</span>
+                <span class="material-symbols-outlined filled text-[48px]">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
               </button>
-              <button @click="audioStore.playNext()" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+              <button @click="handleNext" class="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
                 <span class="material-symbols-outlined text-[32px] text-white">skip_next</span>
               </button>
             </div>
@@ -106,22 +106,22 @@
             <span class="text-white/50 text-xs font-medium w-10 text-right">{{ currentTimeText }}</span>
             <div class="relative flex-1 h-1.5 bg-white/20 rounded-full">
               <!-- Parte Riempita -->
-              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: localProgress + '%' }"></div>
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: progressPercent + '%' }"></div>
               <!-- Input Range Invisibile Interattivo -->
-              <input type="range" min="0" max="100" v-model.number="localProgress" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+              <input type="range" min="0" max="100" v-model.number="progressPercent" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
             <span class="text-white/50 text-xs font-medium w-10 text-left">{{ remainingTimeText }}</span>
           </div>
 
           <!-- Main Buttons (No Shuffle/Repeat) -->
           <div class="flex items-center justify-center gap-6 mt-2">
-            <button @click="audioStore.playPrevious()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
+            <button @click="handlePrev" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
               <span class="material-symbols-outlined text-[12px] text-white">skip_previous</span>
             </button>
             <button @click="togglePlay" class="w-12 h-12 flex items-center justify-center rounded-[18px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)] shrink-0">
-              <span class="material-symbols-outlined filled text-[18px]">{{ isLocalPlaying ? 'pause' : 'play_arrow' }}</span>
+              <span class="material-symbols-outlined filled text-[18px]">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
             </button>
-            <button @click="audioStore.playNext()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
+            <button @click="handleNext" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md shrink-0">
               <span class="material-symbols-outlined text-[12px] text-white">skip_next</span>
             </button>
           </div>
@@ -150,28 +150,102 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const currentTitle = computed(() => localCurrentSong.value?.title || 'Seleziona un brano')
-const currentArtist = computed(() => localCurrentSong.value?.artist || 'Libreria')
-const currentCover = computed(() => localCurrentSong.value?.coverUrl || songPlaceholder)
+const currentTitle = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return audioStore.currentTrack.title
+  }
+  return localCurrentSong.value?.title || 'Seleziona un brano'
+})
+
+const currentArtist = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return audioStore.currentTrack.artist
+  }
+  return localCurrentSong.value?.artist || 'Libreria'
+})
+
+const currentCover = computed(() => {
+  if (audioStore.currentSource === 'bluetooth') {
+    return songPlaceholder
+  }
+  return localCurrentSong.value?.coverUrl || songPlaceholder
+})
+
+const isPlaying = computed(() => {
+  if (audioStore.currentSource === 'bluetooth') {
+    return audioStore.playbackStatus === 'playing'
+  }
+  return isLocalPlaying.value
+})
+
+const progressPercent = computed({
+  get() {
+    if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+      const duration = audioStore.currentTrack.duration || 1
+      const pos = audioStore.currentTrack.position || 0
+      return Math.min(100, Math.max(0, (pos / duration) * 100))
+    }
+    return localProgress.value
+  },
+  set(val: number) {
+    if (audioStore.currentSource !== 'bluetooth') {
+      audioStore.seekLocal(val)
+    }
+  }
+})
 
 const currentTimeText = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return formatDuration(audioStore.currentTrack.position || 0)
+  }
   if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
   const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
   return formatDuration(currentSecs)
 })
 
 const remainingTimeText = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    const duration = audioStore.currentTrack.duration || 0
+    const pos = audioStore.currentTrack.position || 0
+    return '-' + formatDuration(Math.max(0, duration - pos))
+  }
   if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
   const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
   return '-' + formatDuration(localCurrentSong.value.rawDuration - currentSecs)
 })
 
 const togglePlay = () => {
-  audioStore.toggleLocalPlay()
+  if (audioStore.currentSource === 'bluetooth') {
+    if (isPlaying.value) {
+      audioStore.pauseBluetooth()
+    } else {
+      audioStore.playBluetooth()
+    }
+  } else {
+    audioStore.toggleLocalPlay()
+  }
+}
+
+const handlePrev = () => {
+  if (audioStore.currentSource === 'bluetooth') {
+    audioStore.prevBluetooth()
+  } else {
+    audioStore.playPrevious()
+  }
+}
+
+const handleNext = () => {
+  if (audioStore.currentSource === 'bluetooth') {
+    audioStore.nextBluetooth()
+  } else {
+    audioStore.playNext()
+  }
 }
 
 const handleSeek = (event: Event) => {
   const target = event.target as HTMLInputElement
-  audioStore.seekLocal(Number(target.value))
+  if (audioStore.currentSource !== 'bluetooth') {
+    audioStore.seekLocal(Number(target.value))
+  }
 }
 </script>

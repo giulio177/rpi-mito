@@ -3,7 +3,18 @@ import { useBluetoothStore } from '@/stores/bluetooth'
 import { useWiFiStore } from '@/stores/wifi'
 import type { WebSocketMessage, AudioStatus, BluetoothStatus, WiFiStatus } from '@/types'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
+const getWsUrl = (): string => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL
+  }
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}/ws`
+  }
+  return 'ws://localhost:8000/ws'
+}
+
+const WS_URL = getWsUrl()
 
 type ConnectionCallback = () => void
 

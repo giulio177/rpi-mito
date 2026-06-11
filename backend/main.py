@@ -34,6 +34,27 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def status_broadcast_loop():
+    while True:
+        try:
+            if manager.active_connections:
+                audio = HALFactory.get_module("audio")
+                bt = HALFactory.get_module("bluetooth")
+                wifi = HALFactory.get_module("wifi")
+                
+                await manager.broadcast({
+                    "type": "status_update",
+                    "data": {
+                        "audio": audio.get_status() if audio else {},
+                        "bluetooth": bt.get_status() if bt else {},
+                        "wifi": wifi.get_status() if wifi else {},
+                    }
+                })
+        except Exception as e:
+            print(f"Error in status broadcast loop: {e}")
+        await asyncio.sleep(1.5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -42,8 +63,16 @@ async def lifespan(app: FastAPI):
     results = HALFactory.initialize_all()
     print(f"Module initialization results: {results}")
     
+    broadcast_task = asyncio.create_task(status_broadcast_loop())
+    
     yield
     
+    broadcast_task.cancel()
+    try:
+        await broadcast_task
+    except asyncio.CancelledError:
+        pass
+        
     print("Shutting down RPi Car Infotainment Backend...")
     HALFactory.shutdown_all()
 
@@ -141,6 +170,50 @@ async def bt_discoverable(enabled: bool):
     bt = HALFactory.get_module("bluetooth")
     if bt:
         success = bt.set_discoverable(enabled)
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+@app.post("/api/bluetooth/player/play")
+async def bt_player_play():
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_play()
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+@app.post("/api/bluetooth/player/pause")
+async def bt_player_pause():
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_pause()
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+@app.post("/api/bluetooth/player/next")
+async def bt_player_next():
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_next()
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+@app.post("/api/bluetooth/player/previous")
+async def bt_player_previous():
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_previous()
         if inspect.isawaitable(success):
             success = await success
         return {"success": success}

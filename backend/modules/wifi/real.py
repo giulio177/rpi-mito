@@ -1,4 +1,5 @@
 import asyncio
+import socket
 from typing import Dict, List, Optional, Any
 from modules.wifi.interface import WiFiModuleInterface, WiFiState
 
@@ -6,6 +7,7 @@ class RealWiFiModule(WiFiModuleInterface):
     def __init__(self):
         super().__init__()
         self._state = self._create_initial_state()
+        self._loop_task: Optional[asyncio.Task] = None
 
     def _create_initial_state(self) -> WiFiState:
         return WiFiState(
@@ -20,10 +22,13 @@ class RealWiFiModule(WiFiModuleInterface):
 
     def initialize(self) -> bool:
         self.update_state(enabled=True, status="ready")
+        self._loop_task = asyncio.create_task(self._monitor_wifi_loop())
         return True
 
     def shutdown(self) -> bool:
         self.update_state(enabled=False, status="shutdown")
+        if self._loop_task:
+            self._loop_task.cancel()
         return True
 
     def get_status(self) -> Dict[str, Any]:
@@ -44,20 +49,69 @@ class RealWiFiModule(WiFiModuleInterface):
             }
         return None
 
+    def _parse_terse_line(self, line: str) -> List[str]:
+        # Helper to split colon-separated values while handling escaped colons '\:'
+        temp = line.replace('\\:', '__COLON__')
+        parts = temp.split(':')
+        return [p.replace('__COLON__', ':') for p in parts]
+
+    def _get_local_ip(self) -> str:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't need to be reachable
+            s.connect(('10.255.255.255', 1))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+        return ip
+
+    async def _monitor_wifi_loop(self):
+        while True:
+            try:
+                proc = await asyncio.create_subprocess_shell(
+                    "nmcli -t -f ACTIVE,SSID,SIGNAL dev wifi list",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await proc.communicate()
+                
+                active_ssid = None
+                signal = 0
+                
+                for line in stdout.decode().splitlines():
+                    if not line:
+                        continue
+                    parts = self._parse_terse_line(line)
+                    if len(parts) >= 2 and parts[0] == "yes":
+                        active_ssid = parts[1]
+                        if len(parts) >= 3:
+                            try:
+                                signal = int(parts[2])
+                            except:
+                                signal = 0
+                        break
+                
+                if active_ssid:
+                    ip = self._get_local_ip()
+                    self._state.connected = True
+                    self._state.ssid = active_ssid
+                    self._state.ip_address = ip
+                    self._state.signal_strength = signal
+                else:
+                    self._state.connected = False
+                    self._state.ssid = None
+                    self._state.ip_address = None
+                    self._state.signal_strength = 0
+            except Exception as e:
+                print(f"[RealWiFi] Exception in monitor loop: {e}")
+            await asyncio.sleep(5)
+
     async def scan_networks(self) -> List[Dict[str, Any]]:
         try:
-            # 1. Vediamo qual è la rete attiva attualmente
-            proc_active = await asyncio.create_subprocess_shell(
-                "nmcli -t -f ACTIVE,SSID dev wifi list | grep '^*'",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout_active, _ = await proc_active.communicate()
-            active_ssid = stdout_active.decode().strip().replace("*:", "")
-
-            # 2. Elenchiamo tutte le reti
             proc = await asyncio.create_subprocess_shell(
-                "nmcli -t -f SSID,SIGNAL,SECURITY,BARS dev wifi list",
+                "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -68,10 +122,11 @@ class RealWiFiModule(WiFiModuleInterface):
             for line in output.split('\n'):
                 if not line or ':' not in line:
                     continue
-                parts = line.split(':')
+                parts = self._parse_terse_line(line)
                 if len(parts) >= 3:
                     ssid = parts[0].strip()
-                    if not ssid: continue
+                    if not ssid:
+                        continue
                     
                     try:
                         signal = int(parts[1])
@@ -79,9 +134,8 @@ class RealWiFiModule(WiFiModuleInterface):
                         signal = 0
                         
                     is_secure = "WPA" in parts[2] or "WEP" in parts[2]
-                    is_connected = (ssid == active_ssid)
+                    is_connected = (ssid == self._state.ssid)
                     
-                    # Teniamo solo il segnale più forte per lo stesso SSID
                     if ssid not in networks or networks[ssid]['signal'] < signal:
                         networks[ssid] = {
                             "ssid": ssid,
@@ -91,27 +145,25 @@ class RealWiFiModule(WiFiModuleInterface):
                         }
             
             self._state.available_networks = list(networks.values())
-            # Aggiorniamo lo stato globale del modulo
-            if active_ssid:
-                self._state.connected = True
-                self._state.ssid = active_ssid
-            
             return self._state.available_networks
         except Exception as e:
             print(f"[RealWiFi] Scan error: {e}")
             return []
 
-
     async def connect(self, ssid: str, password: Optional[str] = None) -> bool:
         try:
-            # 1. Pulizia: eliminiamo profili vecchi con lo stesso nome per evitare conflitti
-            await asyncio.create_subprocess_shell(f'nmcli connection delete "{ssid}"')
+            # 1. Delete connection if it already exists
+            proc_del = await asyncio.create_subprocess_shell(
+                f'nmcli connection delete "{ssid}"',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc_del.communicate()
             
-            # 2. Connessione
+            # 2. Connect
             cmd = f'nmcli dev wifi connect "{ssid}"'
             if password:
                 cmd += f' password "{password}"'
-
                 
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -123,6 +175,8 @@ class RealWiFiModule(WiFiModuleInterface):
             if proc.returncode == 0:
                 self._state.connected = True
                 self._state.ssid = ssid
+                self._state.ip_address = self._get_local_ip()
+                await self.scan_networks()
                 return True
             print(f"[RealWiFi] Connection failed: {stderr.decode()}")
             return False
@@ -143,6 +197,9 @@ class RealWiFiModule(WiFiModuleInterface):
             if proc.returncode == 0:
                 self._state.connected = False
                 self._state.ssid = None
+                self._state.ip_address = None
+                self._state.signal_strength = 0
+                await self.scan_networks()
                 return True
             return False
         except Exception as e:

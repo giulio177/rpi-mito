@@ -171,6 +171,12 @@ WantedBy=multi-user.target
 EOF
 systemctl enable --now pulseaudio.service
 
+# Configurazione client PulseAudio per usare il daemon di sistema
+cat >/etc/pulse/client.conf <<'EOF'
+default-server = unix:/var/run/pulse/native
+autospawn = no
+EOF
+
 ###############################################################################
 # 5) Gruppi, Seatd, Virtual Environment e Build Frontend
 ###############################################################################
@@ -224,6 +230,7 @@ Group=$USER_NAME
 WorkingDirectory=$PROJECT_DIR/backend
 Environment=PYTHONUNBUFFERED=1
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_UID/bus
+Environment=PULSE_SERVER=unix:/var/run/pulse/native
 ExecStart=$PROJECT_DIR/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
@@ -249,6 +256,7 @@ WorkingDirectory=$PROJECT_DIR
 Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=HOME=/home/$USER_NAME
+Environment=PULSE_SERVER=unix:/var/run/pulse/native
 ExecStart=/usr/bin/cage -- /usr/bin/chromium \
   --kiosk --no-sandbox --disable-infobars --start-maximized \
   --overscroll-history-navigation=0 --disable-translate --disable-features=Translate \

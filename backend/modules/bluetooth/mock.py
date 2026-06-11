@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 from modules.bluetooth.interface import BluetoothModuleInterface, BluetoothState
 
@@ -72,3 +72,30 @@ class MockBluetoothModule(BluetoothModuleInterface):
     
     def get_battery_level(self) -> Optional[int]:
         return self._state.battery_level
+
+    def get_media_status(self) -> Dict[str, Any]:
+        return {
+            "playback_status": "playing" if self._state.connected else "stopped",
+            "current_track": {
+                "title": "Mock Bluetooth Track",
+                "artist": "Mock Artist",
+                "duration": 180,
+                "position": 45
+            } if self._state.connected else None
+        }
+
+    def player_play(self) -> bool:
+        print("[MockBluetooth] Player Play")
+        return True
+
+    def player_pause(self) -> bool:
+        print("[MockBluetooth] Player Pause")
+        return True
+
+    def player_next(self) -> bool:
+        print("[MockBluetooth] Player Next")
+        return True
+
+    def player_previous(self) -> bool:
+        print("[MockBluetooth] Player Previous")
+        return True
