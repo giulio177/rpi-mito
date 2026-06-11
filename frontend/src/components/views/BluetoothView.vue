@@ -7,13 +7,14 @@ const bluetoothStore = useBluetoothStore()
   <div class="h-full flex flex-col">
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-semibold">Bluetooth</h2>
-      <span :class="bluetoothStore.enabled ? 'text-green-400' : 'text-red-400'">
-        {{ bluetoothStore.enabled ? 'Attivo' : 'Disattivo' }}
+      <span :class="bluetoothStore.connected ? 'text-green-400' : 'text-red-400'">
+        {{ bluetoothStore.connected ? 'Connesso' : 'Disconnesso' }}
       </span>
     </div>
-    <div v-if="bluetoothStore.connectedDevice" class="mb-6 p-4 bg-green-900/30 rounded-lg">
+    <div v-if="bluetoothStore.connected && bluetoothStore.deviceName" class="mb-6 p-4 bg-green-900/30 rounded-lg">
       <p class="text-green-400 font-semibold">Connesso a:</p>
-      <p class="text-xl">{{ bluetoothStore.connectedDevice.name }}</p>
+      <p class="text-xl">{{ bluetoothStore.deviceName }}</p>
+      <p v-if="bluetoothStore.deviceAddress" class="text-gray-400 text-sm mb-2">{{ bluetoothStore.deviceAddress }}</p>
       <button
         @click="bluetoothStore.disconnect()"
         class="mt-2 px-4 py-2 bg-red-600 rounded-lg"
@@ -22,12 +23,12 @@ const bluetoothStore = useBluetoothStore()
       </button>
     </div>
     <div class="flex-1 overflow-auto">
-      <h3 class="text-lg font-semibold mb-3">Dispositivi disponibili</h3>
-      <div v-if="bluetoothStore.devices.length === 0" class="text-gray-400">
-        Nessun dispositivo trovato
+      <h3 class="text-lg font-semibold mb-3">Dispositivi</h3>
+      <div v-if="bluetoothStore.availableDevices.length === 0" class="text-gray-400">
+        Nessun dispositivo associato
       </div>
       <div
-        v-for="device in bluetoothStore.devices"
+        v-for="device in bluetoothStore.availableDevices"
         :key="device.address"
         class="flex justify-between items-center p-4 bg-gray-800 rounded-lg mb-2"
       >
@@ -36,7 +37,7 @@ const bluetoothStore = useBluetoothStore()
           <p class="text-gray-400 text-sm">{{ device.address }}</p>
         </div>
         <button
-          v-if="!device.connected"
+          v-if="!device.isConnected"
           @click="bluetoothStore.connect(device.address)"
           class="px-4 py-2 bg-blue-600 rounded-lg"
         >

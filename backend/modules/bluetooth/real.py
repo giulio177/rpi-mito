@@ -23,8 +23,12 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     def initialize(self) -> bool:
         self.update_state(enabled=True, status="ready")
-        self._loop_task = asyncio.create_task(self._monitor_bluetooth_loop())
+        asyncio.create_task(self._power_on_and_start_loop())
         return True
+
+    async def _power_on_and_start_loop(self):
+        await self._run_bluetoothctl("power on")
+        self._loop_task = asyncio.create_task(self._monitor_bluetooth_loop())
 
     def shutdown(self) -> bool:
         self.update_state(enabled=False, status="shutdown")

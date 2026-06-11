@@ -127,6 +127,13 @@ class ApiClient {
     const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/previous')
     return response.data
   }
+
+  async setDiscoverable(enabled: boolean): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(
+      `/api/bluetooth/discoverable?enabled=${enabled}`
+    )
+    return response.data
+  }
 }
 
 export const api = new ApiClient()

@@ -24,10 +24,11 @@ export interface BluetoothDevice {
 }
 
 export interface BluetoothStatus {
-  enabled: boolean
-  discovering: boolean
-  connected_device: BluetoothDevice | null
-  devices: BluetoothDevice[]
+  connected: boolean
+  device_name: string | null
+  device_address: string | null
+  battery_level: number | null
+  available_devices: any[]
 }
 
 export interface WiFiNetwork {
@@ -39,11 +40,11 @@ export interface WiFiNetwork {
 }
 
 export interface WiFiStatus {
-  enabled: boolean
   connected: boolean
-  current_ssid: string | null
+  ssid: string | null
   ip_address: string | null
-  networks: WiFiNetwork[]
+  signal_strength: number
+  available_networks: any[]
 }
 
 export type WebSocketMessageType =

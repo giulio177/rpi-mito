@@ -140,7 +140,7 @@ class RealWiFiModule(WiFiModuleInterface):
                         networks[ssid] = {
                             "ssid": ssid,
                             "signal": signal,
-                            "isSecure": is_secure,
+                            "is_secure": is_secure,
                             "isConnected": is_connected
                         }
             

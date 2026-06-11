@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { WiFiStatus, WiFiNetwork } from '@/types'
+import type { WiFiStatus } from '@/types'
 import api from '@/services/api'
 
 export const useWiFiStore = defineStore('wifi', () => {
-  const enabled = ref(false)
   const connected = ref(false)
-  const currentSsid = ref<string | null>(null)
+  const ssid = ref<string | null>(null)
   const ipAddress = ref<string | null>(null)
-  const networks = ref<WiFiNetwork[]>([])
+  const signalStrength = ref(0)
+  const availableNetworks = ref<any[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -17,11 +17,11 @@ export const useWiFiStore = defineStore('wifi', () => {
     error.value = null
     try {
       const status = await api.getWiFiStatus()
-      enabled.value = status.enabled
       connected.value = status.connected
-      currentSsid.value = status.current_ssid
+      ssid.value = status.ssid
       ipAddress.value = status.ip_address
-      networks.value = status.networks
+      signalStrength.value = status.signal_strength
+      availableNetworks.value = status.available_networks
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch WiFi status'
     } finally {
@@ -34,7 +34,7 @@ export const useWiFiStore = defineStore('wifi', () => {
     error.value = null
     try {
       const networkList = await api.getWiFiNetworks()
-      networks.value = networkList
+      availableNetworks.value = networkList
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to scan networks'
     } finally {
@@ -42,12 +42,12 @@ export const useWiFiStore = defineStore('wifi', () => {
     }
   }
 
-  async function connect(ssid: string, password?: string): Promise<void> {
+  async function connect(ssidVal: string, password?: string): Promise<void> {
     error.value = null
     try {
-      const result = await api.connectWiFi(ssid, password)
+      const result = await api.connectWiFi(ssidVal, password)
       if (result.success) {
-        await scanNetworks()
+        await fetchStatus()
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to connect'
@@ -60,9 +60,10 @@ export const useWiFiStore = defineStore('wifi', () => {
       const result = await api.disconnectWiFi()
       if (result.success) {
         connected.value = false
-        currentSsid.value = null
+        ssid.value = null
         ipAddress.value = null
-        await scanNetworks()
+        signalStrength.value = 0
+        await fetchStatus()
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
@@ -70,29 +71,29 @@ export const useWiFiStore = defineStore('wifi', () => {
   }
 
   function updateFromWs(data: Partial<WiFiStatus>): void {
-    if (data.enabled !== undefined) {
-      enabled.value = data.enabled
-    }
     if (data.connected !== undefined) {
       connected.value = data.connected
     }
-    if (data.current_ssid !== undefined) {
-      currentSsid.value = data.current_ssid
+    if (data.ssid !== undefined) {
+      ssid.value = data.ssid
     }
     if (data.ip_address !== undefined) {
       ipAddress.value = data.ip_address
     }
-    if (data.networks !== undefined) {
-      networks.value = data.networks
+    if (data.signal_strength !== undefined) {
+      signalStrength.value = data.signal_strength
+    }
+    if (data.available_networks !== undefined) {
+      availableNetworks.value = data.available_networks
     }
   }
 
   return {
-    enabled,
     connected,
-    currentSsid,
+    ssid,
     ipAddress,
-    networks,
+    signalStrength,
+    availableNetworks,
     isLoading,
     error,
     fetchStatus,

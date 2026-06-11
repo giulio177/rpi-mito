@@ -362,6 +362,45 @@
       </div>
     </Transition>
   </Teleport>
+
+  <!-- MODALE NOTIFICA / ERRORE -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="alertMessage" class="fixed inset-0 z-[9999] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="alertMessage = ''"></div>
+        <div class="relative bg-[#1c1c1e] border border-white/10 rounded-[30px] p-8 w-80 flex flex-col gap-6 shadow-2xl items-center text-center">
+          <span class="material-symbols-outlined text-[48px] text-[#ddb7ff]">info</span>
+          <h3 class="text-xl font-bold">Notifica</h3>
+          <p class="text-white/70 text-sm">{{ alertMessage }}</p>
+          <button @click="alertMessage = ''" class="w-full py-3 rounded-xl bg-[#ddb7ff] text-[#490080] font-bold active:scale-95 transition-transform">
+            OK
+          </button>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- MODALE CONFERMA DISCONNESSIONE WIFI -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="wifiDisconnectPending" class="fixed inset-0 z-[9999] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="wifiDisconnectPending = null"></div>
+        <div class="relative bg-[#1c1c1e] border border-white/10 rounded-[30px] p-8 w-80 flex flex-col gap-6 shadow-2xl items-center text-center">
+          <span class="material-symbols-outlined text-[48px] text-orange-400">wifi_off</span>
+          <h3 class="text-xl font-bold">Disconnetti</h3>
+          <p class="text-white/50 text-sm">Sei sicuro di disconnetterti da {{ wifiDisconnectPending.ssid }}?</p>
+          <div class="flex gap-3 w-full">
+            <button @click="wifiDisconnectPending = null" class="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-semibold transition-colors">
+              Annulla
+            </button>
+            <button @click="confirmWifiDisconnect" class="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors">
+              Conferma
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -425,11 +464,19 @@ const {
   disconnectWifi
 } = useWifi()
 
+const alertMessage = ref('')
+const wifiDisconnectPending = ref<any | null>(null)
+
+const confirmWifiDisconnect = async () => {
+  if (wifiDisconnectPending.value) {
+    await disconnectWifi()
+    wifiDisconnectPending.value = null
+  }
+}
+
 const handleWifiConnect = async (net: any) => {
   if (net.isConnected) {
-    if (confirm(`Disconnettere da ${net.ssid}?`)) {
-      await disconnectWifi()
-    }
+    wifiDisconnectPending.value = net
     return
   }
 
@@ -442,7 +489,7 @@ const handleWifiConnect = async (net: any) => {
 
   const success = await connectToWifi(net.ssid, password)
   if (!success) {
-    alert('Connessione fallita. Controlla la password.')
+    alertMessage.value = 'Connessione fallita. Controlla la password.'
   }
 }
 

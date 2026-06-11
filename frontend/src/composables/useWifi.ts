@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
+import api from '@/services/api'
 
 export interface WifiNetwork {
   id: string
@@ -7,8 +8,6 @@ export interface WifiNetwork {
   isConnected: boolean
   signal: number
 }
-
-const API_BASE = 'http://localhost:8000/api/wifi'
 
 const savedNetworks = ref<WifiNetwork[]>([])
 const availableNetworks = ref<WifiNetwork[]>([])
@@ -19,14 +18,18 @@ export function useWifi() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_BASE}/status`)
-      const data = await res.json()
-      // Il backend ritorna un oggetto con is_enabled, current_ssid, networks (salvate)
-      savedNetworks.value = data.networks.map((n: any) => ({
-        ...n,
-        id: n.ssid,
-        isConnected: n.ssid === data.current_ssid
-      }))
+      const data = await api.getWiFiStatus()
+      if (data.connected && data.ssid) {
+        savedNetworks.value = [{
+          id: data.ssid,
+          ssid: data.ssid,
+          isSecure: true,
+          isConnected: true,
+          signal: data.signal_strength || 100
+        }]
+      } else {
+        savedNetworks.value = []
+      }
     } catch (e) {
       console.error('Errore fetch wifi status:', e)
     }
@@ -35,12 +38,17 @@ export function useWifi() {
   const scanNetworks = async () => {
     isScanning.value = true
     try {
-      const res = await fetch(`${API_BASE}/networks`)
-      const data = await res.json()
-      // Filtriamo quelle non salvate o le separiamo
-      availableNetworks.value = data.filter((n: any) => 
-        !savedNetworks.value.find(sn => sn.ssid === n.ssid)
-      ).map((n: any) => ({ ...n, id: n.ssid, isConnected: false }))
+      const data = await api.getWiFiNetworks()
+      const activeSsid = currentSsid.value
+      availableNetworks.value = data
+        .filter((n: any) => n.ssid !== activeSsid)
+        .map((n: any) => ({
+          id: n.ssid,
+          ssid: n.ssid,
+          isSecure: n.isSecure,
+          isConnected: false,
+          signal: n.signal
+        }))
     } catch (e) {
       console.error('Errore scan wifi:', e)
     } finally {
@@ -50,12 +58,7 @@ export function useWifi() {
 
   const connectToWifi = async (ssid: string, password?: string) => {
     try {
-      const res = await fetch(`${API_BASE}/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ssid, password })
-      })
-      const data = await res.json()
+      const data = await api.connectWiFi(ssid, password)
       if (data.success) {
         await fetchStatus()
       }
@@ -68,8 +71,7 @@ export function useWifi() {
 
   const disconnectWifi = async () => {
     try {
-      const res = await fetch(`${API_BASE}/disconnect`, { method: 'POST' })
-      const data = await res.json()
+      const data = await api.disconnectWiFi()
       if (data.success) {
         await fetchStatus()
       }
@@ -80,7 +82,7 @@ export function useWifi() {
 
   onMounted(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 10000) // Polling più lento per il WiFi
+    const interval = setInterval(fetchStatus, 5000)
     return () => clearInterval(interval)
   })
 

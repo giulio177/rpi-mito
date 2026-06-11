@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { BluetoothStatus, BluetoothDevice } from '@/types'
+import type { BluetoothStatus } from '@/types'
 import api from '@/services/api'
 
 export const useBluetoothStore = defineStore('bluetooth', () => {
-  const enabled = ref(false)
-  const discovering = ref(false)
-  const connectedDevice = ref<BluetoothDevice | null>(null)
-  const devices = ref<BluetoothDevice[]>([])
+  const connected = ref(false)
+  const deviceName = ref<string | null>(null)
+  const deviceAddress = ref<string | null>(null)
+  const batteryLevel = ref<number | null>(null)
+  const availableDevices = ref<any[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -16,10 +17,11 @@ export const useBluetoothStore = defineStore('bluetooth', () => {
     error.value = null
     try {
       const status = await api.getBluetoothStatus()
-      enabled.value = status.enabled
-      discovering.value = status.discovering
-      connectedDevice.value = status.connected_device
-      devices.value = status.devices
+      connected.value = status.connected
+      deviceName.value = status.device_name
+      deviceAddress.value = status.device_address
+      batteryLevel.value = status.battery_level
+      availableDevices.value = status.available_devices
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch BT status'
     } finally {
@@ -32,7 +34,7 @@ export const useBluetoothStore = defineStore('bluetooth', () => {
     error.value = null
     try {
       const deviceList = await api.getBluetoothDevices()
-      devices.value = deviceList
+      availableDevices.value = deviceList
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to scan devices'
     } finally {
@@ -45,7 +47,7 @@ export const useBluetoothStore = defineStore('bluetooth', () => {
     try {
       const result = await api.connectBluetooth(address)
       if (result.success) {
-        await scanDevices()
+        await fetchStatus()
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to connect'
@@ -57,8 +59,11 @@ export const useBluetoothStore = defineStore('bluetooth', () => {
     try {
       const result = await api.disconnectBluetooth()
       if (result.success) {
-        connectedDevice.value = null
-        await scanDevices()
+        connected.value = false
+        deviceName.value = null
+        deviceAddress.value = null
+        batteryLevel.value = null
+        await fetchStatus()
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
@@ -66,25 +71,29 @@ export const useBluetoothStore = defineStore('bluetooth', () => {
   }
 
   function updateFromWs(data: Partial<BluetoothStatus>): void {
-    if (data.enabled !== undefined) {
-      enabled.value = data.enabled
+    if (data.connected !== undefined) {
+      connected.value = data.connected
     }
-    if (data.discovering !== undefined) {
-      discovering.value = data.discovering
+    if (data.device_name !== undefined) {
+      deviceName.value = data.device_name
     }
-    if (data.connected_device !== undefined) {
-      connectedDevice.value = data.connected_device
+    if (data.device_address !== undefined) {
+      deviceAddress.value = data.device_address
     }
-    if (data.devices !== undefined) {
-      devices.value = data.devices
+    if (data.battery_level !== undefined) {
+      batteryLevel.value = data.battery_level
+    }
+    if (data.available_devices !== undefined) {
+      availableDevices.value = data.available_devices
     }
   }
 
   return {
-    enabled,
-    discovering,
-    connectedDevice,
-    devices,
+    connected,
+    deviceName,
+    deviceAddress,
+    batteryLevel,
+    availableDevices,
     isLoading,
     error,
     fetchStatus,

@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
+import api from '@/services/api'
 
 export interface BluetoothDevice {
   id: string
@@ -8,9 +9,6 @@ export interface BluetoothDevice {
   isPaired: boolean
 }
 
-const API_BASE = 'http://localhost:8000/api/bluetooth'
-
-// Stato globale per mantenere la sincronizzazione tra i componenti
 const pairedDevices = ref<BluetoothDevice[]>([])
 const availableDevices = ref<BluetoothDevice[]>([])
 const isScanning = ref(false)
@@ -24,31 +22,24 @@ export function useBluetooth() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_BASE}/status`)
-      const data = await res.json()
+      const data = await api.getBluetoothStatus()
       if (data) {
-        adapterName.value = data.adapter_name || 'MITO-fr'
-        isPowered.value = data.is_powered
-        isDiscoverable.value = data.is_discoverable
+        adapterName.value = data.device_name || 'MITO-fr'
+        isPowered.value = data.connected || false
         
-        pairedDevices.value = (data.paired_devices || []).map((d: any) => ({
-          ...d,
-          isConnected: d.id === data.connected_device_id,
-          isFavorite: d.id === localStorage.getItem('bt_favorite')
+        const devices = (data.available_devices || []).map((d: any) => ({
+          id: d.address,
+          name: d.name || d.address,
+          isConnected: d.isConnected,
+          isFavorite: d.address === localStorage.getItem('bt_favorite'),
+          isPaired: d.isPaired
         }))
+        
+        pairedDevices.value = devices.filter((d: any) => d.isPaired)
+        availableDevices.value = devices.filter((d: any) => !d.isPaired)
       }
     } catch (e) {
       console.error('BT Status error:', e)
-    }
-  }
-
-  const fetchPairedDevices = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/paired`)
-      const data = await res.json()
-      pairedDevices.value = data
-    } catch (e) {
-      console.error('Error fetching paired devices:', e)
     }
   }
 
@@ -62,9 +53,16 @@ export function useBluetooth() {
   const scanDevices = async () => {
     isScanning.value = true
     try {
-      const res = await fetch(`${API_BASE}/devices`)
-      const data = await res.json()
-      availableDevices.value = data.filter((d: any) => !d.isPaired)
+      const data = await api.getBluetoothDevices()
+      const devices = data.map((d: any) => ({
+        id: d.address,
+        name: d.name || d.address,
+        isConnected: d.isConnected,
+        isFavorite: d.address === localStorage.getItem('bt_favorite'),
+        isPaired: d.isPaired
+      }))
+      pairedDevices.value = devices.filter((d: any) => d.isPaired)
+      availableDevices.value = devices.filter((d: any) => !d.isPaired)
     } catch (e) {
       console.error('Errore scan bluetooth:', e)
     } finally {
@@ -76,19 +74,15 @@ export function useBluetooth() {
     const device = pairedDevices.value.find(d => d.id === id) || availableDevices.value.find(d => d.id === id)
     if (!device) return
 
-    const endpoint = device.isConnected ? 'disconnect' : 'connect'
     try {
-      const res = await fetch(`${API_BASE}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: id })
-      })
-      const data = await res.json()
-      if (data.success) {
-        await fetchStatus()
+      if (device.isConnected) {
+        await api.disconnectBluetooth()
+      } else {
+        await api.connectBluetooth(id)
       }
+      await fetchStatus()
     } catch (e) {
-      console.error(`Errore ${endpoint} bluetooth:`, e)
+      console.error(`Errore connection bluetooth:`, e)
     }
   }
 
@@ -100,14 +94,14 @@ export function useBluetooth() {
 
   const setDiscoverable = async (enabled: boolean) => {
     try {
-      await fetch(`${API_BASE}/discoverable?enabled=${enabled}`, { method: 'POST' })
+      await api.setDiscoverable(enabled)
+      isDiscoverable.value = enabled
       await fetchStatus()
     } catch (e) {
       console.error('Errore set discoverable:', e)
     }
   }
 
-  // Polling leggero ogni 5 secondi per lo stato della connessione
   onMounted(() => {
     fetchStatus()
     const interval = setInterval(fetchStatus, 5000)
