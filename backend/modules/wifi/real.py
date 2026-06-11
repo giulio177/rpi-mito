@@ -67,11 +67,29 @@ class RealWiFiModule(WiFiModuleInterface):
             s.close()
         return ip
 
+    async def _get_wifi_interface(self) -> str:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "nmcli", "-t", "-f", "DEVICE,TYPE", "device",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await proc.communicate()
+            for line in stdout.decode().splitlines():
+                if not line:
+                    continue
+                parts = line.split(":")
+                if len(parts) >= 2 and parts[1] == "wifi":
+                    return parts[0]
+        except Exception as e:
+            print(f"[RealWiFi] Error finding wifi interface: {e}")
+        return "wlan0"  # fallback
+
     async def _monitor_wifi_loop(self):
         while True:
             try:
-                proc = await asyncio.create_subprocess_shell(
-                    "nmcli -t -f ACTIVE,SSID,SIGNAL dev wifi list",
+                proc = await asyncio.create_subprocess_exec(
+                    "nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi", "list",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
@@ -110,8 +128,8 @@ class RealWiFiModule(WiFiModuleInterface):
 
     async def scan_networks(self) -> List[Dict[str, Any]]:
         try:
-            proc = await asyncio.create_subprocess_shell(
-                "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list",
+            proc = await asyncio.create_subprocess_exec(
+                "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -152,21 +170,13 @@ class RealWiFiModule(WiFiModuleInterface):
 
     async def connect(self, ssid: str, password: Optional[str] = None) -> bool:
         try:
-            # 1. Delete connection if it already exists
-            proc_del = await asyncio.create_subprocess_shell(
-                f'nmcli connection delete "{ssid}"',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            await proc_del.communicate()
-            
-            # 2. Connect
-            cmd = f'nmcli dev wifi connect "{ssid}"'
+            # 1. Try to connect using exec (avoids shell injection/quoting issues!)
+            cmd_args = ["nmcli", "device", "wifi", "connect", ssid]
             if password:
-                cmd += f' password "{password}"'
+                cmd_args.extend(["password", password])
                 
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -178,7 +188,31 @@ class RealWiFiModule(WiFiModuleInterface):
                 self._state.ip_address = self._get_local_ip()
                 await self.scan_networks()
                 return True
-            print(f"[RealWiFi] Connection failed: {stderr.decode()}")
+            
+            # If connect failed and we supplied a password, try deleting the profile first and retry
+            # (sometimes needed if NetworkManager has cached invalid parameters)
+            print(f"[RealWiFi] Direct connection failed: {stderr.decode().strip()}. Retrying after profile cleanup...")
+            proc_del = await asyncio.create_subprocess_exec(
+                "nmcli", "connection", "delete", ssid,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc_del.communicate()
+            
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                self._state.connected = True
+                self._state.ssid = ssid
+                self._state.ip_address = self._get_local_ip()
+                await self.scan_networks()
+                return True
+                
+            print(f"[RealWiFi] Connection failed: {stderr.decode().strip()} | stdout: {stdout.decode().strip()}")
             return False
         except Exception as e:
             print(f"[RealWiFi] Exception connecting to wifi: {e}")
@@ -188,12 +222,14 @@ class RealWiFiModule(WiFiModuleInterface):
         try:
             if not self._state.ssid:
                 return True
-            proc = await asyncio.create_subprocess_shell(
-                f'nmcli connection delete "{self._state.ssid}"',
+                
+            iface = await self._get_wifi_interface()
+            proc = await asyncio.create_subprocess_exec(
+                "nmcli", "device", "disconnect", iface,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            await proc.communicate()
+            stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
                 self._state.connected = False
                 self._state.ssid = None
@@ -201,6 +237,7 @@ class RealWiFiModule(WiFiModuleInterface):
                 self._state.signal_strength = 0
                 await self.scan_networks()
                 return True
+            print(f"[RealWiFi] Disconnect failed: {stderr.decode().strip()}")
             return False
         except Exception as e:
             print(f"[RealWiFi] Exception disconnecting: {e}")

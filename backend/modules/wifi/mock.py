@@ -19,9 +19,9 @@ class MockWiFiModule(WiFiModuleInterface):
             ip_address="192.168.1.100",
             signal_strength=75,
             available_networks=[
-                {"ssid": "Casa_Mio", "signal": 75, "security": "WPA2"},
-                {"ssid": "Guest_Network", "signal": 60, "security": "WPA2"},
-                {"ssid": "Vodafone-1234", "signal": 45, "security": "WPA2"},
+                {"ssid": "Casa_Mio", "signal": 75, "is_secure": True},
+                {"ssid": "Guest_Network", "signal": 60, "is_secure": True},
+                {"ssid": "Vodafone-1234", "signal": 45, "is_secure": True},
             ]
         )
     

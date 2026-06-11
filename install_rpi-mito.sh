@@ -163,7 +163,7 @@ Wants=bluetooth.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/pulseaudio --system --disallow-exit --disallow-module-loading --realtime --log-target=journal
+ExecStart=/usr/bin/pulseaudio --system --disallow-exit --realtime --log-target=journal
 Restart=always
 
 [Install]
@@ -181,7 +181,7 @@ EOF
 # 5) Gruppi, Seatd, Virtual Environment e Build Frontend
 ###############################################################################
 echo ">>> Configurazione permessi hardware e gruppi..."
-usermod -aG video,input,audio,bluetooth,tty,render,pulse-access "$USER_NAME" || true
+usermod -aG video,input,audio,bluetooth,tty,render,pulse-access,netdev "$USER_NAME" || true
 
 # Abilita seatd per i permessi del compositor Wayland
 systemctl enable --now seatd || true

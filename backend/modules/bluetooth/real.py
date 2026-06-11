@@ -55,8 +55,9 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def _run_bluetoothctl(self, command: str) -> str:
         try:
-            proc = await asyncio.create_subprocess_shell(
-                f"bluetoothctl {command}",
+            cmd_args = ["bluetoothctl"] + command.split()
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -64,43 +65,99 @@ class RealBluetoothModule(BluetoothModuleInterface):
             if proc.returncode == 0:
                 return stdout.decode().strip()
             else:
+                err_msg = stderr.decode().strip()
+                print(f"[RealBluetooth] Command 'bluetoothctl {command}' failed (code {proc.returncode}): {err_msg}")
                 return ""
-        except Exception:
+        except Exception as e:
+            print(f"[RealBluetooth] Exception running 'bluetoothctl {command}': {e}")
             return ""
 
     async def _monitor_bluetooth_loop(self):
-        # We run this loop every 1.5 seconds to keep track and media position updated
+        # Keep track of loaded loopback state to prevent duplicate modules
+        self._loopback_loaded = False
+        
         while True:
             try:
-                paired_output = await self._run_bluetoothctl("paired-devices")
-                paired_devices = []
-                any_connected = False
+                # 1. Query connected devices from bluetoothctl directly (very reliable)
+                proc_bt = await asyncio.create_subprocess_exec(
+                    "bluetoothctl", "devices", "Connected",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout_bt, stderr_bt = await proc_bt.communicate()
+                bt_output = stdout_bt.decode().strip()
+                
                 conn_address = None
                 conn_name = None
+                any_connected = False
+                
+                for line in bt_output.splitlines():
+                    if not line:
+                        continue
+                    parts = line.split(None, 2)
+                    if len(parts) >= 3 and parts[0] == "Device":
+                        conn_address = parts[1]
+                        conn_name = parts[2]
+                        any_connected = True
+                        break  # Infotainment currently focuses on the main connected device
+                
+                # 2. Check PulseAudio cards as a fallback
+                pactl_output = ""
+                try:
+                    proc_pactl = await asyncio.create_subprocess_exec(
+                        "pactl", "list", "cards", "short",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout_pactl, stderr_pactl = await proc_pactl.communicate()
+                    if proc_pactl.returncode == 0:
+                        pactl_output = stdout_pactl.decode()
+                    else:
+                        print(f"[RealBluetooth] pactl list cards failed: {stderr_pactl.decode().strip()}")
+                except Exception as pe:
+                    print(f"[RealBluetooth] Exception listing cards: {pe}")
+                
+                card_match = re.search(r'bluez_card\.([0-9a-fA-F_]+)', pactl_output)
+                card_ready_in_pulse = bool(card_match)
+                
+                if card_ready_in_pulse and not any_connected:
+                    addr_underscore = card_match.group(1)
+                    conn_address = addr_underscore.replace("_", ":")
+                    any_connected = True
+                    info_output = await self._run_bluetoothctl(f"info {conn_address}")
+                    name_match = re.search(r'Name:\s*(.*)', info_output)
+                    conn_name = name_match.group(1).strip() if name_match else "Connected Device"
+                
+                # 3. Get all paired devices
+                paired_output = await self._run_bluetoothctl("paired-devices")
+                paired_devices = []
                 
                 for line in paired_output.splitlines():
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
                         addr = parts[1]
                         name = parts[2]
-                        
-                        info_output = await self._run_bluetoothctl(f"info {addr}")
-                        is_connected = "Connected: yes" in info_output
-                        
+                        is_this_connected = (addr == conn_address)
                         paired_devices.append({
                             "id": addr,
                             "address": addr,
                             "name": name,
-                            "isConnected": is_connected,
+                            "isConnected": is_this_connected,
                             "isPaired": True
                         })
-                        
-                        if is_connected:
-                            any_connected = True
-                            conn_address = addr
-                            conn_name = name
                 
-                # Check battery level if connected
+                # If connected device is not in paired_devices list
+                if any_connected and conn_address:
+                    if not any(d["address"] == conn_address for d in paired_devices):
+                        paired_devices.append({
+                            "id": conn_address,
+                            "address": conn_address,
+                            "name": conn_name or conn_address,
+                            "isConnected": True,
+                            "isPaired": False
+                        })
+                
+                # Query battery if connected
                 battery = None
                 if any_connected and conn_address:
                     info_output = await self._run_bluetoothctl(f"info {conn_address}")
@@ -110,13 +167,75 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     if battery_match:
                         battery = int(battery_match.group(1))
                 
+                # Manage module-loopback based on PulseAudio card presence
+                if card_ready_in_pulse and not self._loopback_loaded:
+                    await asyncio.sleep(1.0)  # Wait for PulseAudio source to register
+                    addr_underscore = conn_address.replace(":", "_")
+                    
+                    # Discover the exact bluetooth source name dynamically
+                    source_name = f"bluez_source.{addr_underscore}.a2dp_source"
+                    try:
+                        proc_src = await asyncio.create_subprocess_exec(
+                            "pactl", "list", "sources", "short",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout_src, _ = await proc_src.communicate()
+                        src_output = stdout_src.decode()
+                        match_src = re.search(fr'(bluez_source\.{addr_underscore}\S*)', src_output)
+                        if match_src:
+                            source_name = match_src.group(1)
+                    except Exception as se:
+                        print(f"[RealBluetooth] Exception listing sources: {se}")
+                    
+                    # Unload any existing loopback first to avoid duplicates
+                    try:
+                        proc_un = await asyncio.create_subprocess_exec(
+                            "pactl", "unload-module", "module-loopback",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        await proc_un.communicate()
+                    except:
+                        pass
+                    
+                    print(f"[RealBluetooth] Loading loopback for source: {source_name}")
+                    try:
+                        proc_load = await asyncio.create_subprocess_exec(
+                            "pactl", "load-module", "module-loopback", f"source={source_name}", "latency_msec=200",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout_load, stderr_load = await proc_load.communicate()
+                        if proc_load.returncode == 0:
+                            self._loopback_loaded = True
+                            print(f"[RealBluetooth] Loaded module-loopback successfully for source {source_name}")
+                        else:
+                            print(f"[RealBluetooth] Failed to load module-loopback: {stderr_load.decode().strip()}")
+                    except Exception as le:
+                        print(f"[RealBluetooth] Exception loading loopback: {le}")
+                        
+                elif not card_ready_in_pulse and self._loopback_loaded:
+                    print("[RealBluetooth] Card no longer ready, unloading loopback")
+                    try:
+                        proc_un = await asyncio.create_subprocess_exec(
+                            "pactl", "unload-module", "module-loopback",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        await proc_un.communicate()
+                        print("[RealBluetooth] Unloaded all module-loopback instances")
+                    except Exception as ue:
+                        print(f"[RealBluetooth] Exception unloading loopback: {ue}")
+                    self._loopback_loaded = False
+                
                 # Update state
                 self._state.connected = any_connected
                 self._state.device_address = conn_address
                 self._state.device_name = conn_name
                 self._state.battery_level = battery
                 
-                # Merge paired devices with current available_devices to preserve discovery info
+                # Merge lists
                 updated_available = []
                 seen_addrs = set()
                 for d in paired_devices:
@@ -125,7 +244,6 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 for d in self._state.available_devices:
                     if d["address"] not in seen_addrs:
                         updated_available.append(d)
-                
                 self._state.available_devices = updated_available
                 
                 # Update media status cache
@@ -133,7 +251,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     self._media_status = await self._query_media_status(conn_address)
                 else:
                     self._media_status = {"playback_status": "stopped", "current_track": None}
-                
+                    
             except Exception as e:
                 print(f"[RealBluetooth] Exception in monitor loop: {e}")
                 
@@ -144,14 +262,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def scan_devices(self) -> List[Dict[str, Any]]:
         try:
-            proc = await asyncio.create_subprocess_shell(
-                "bluetoothctl --timeout 5 scan on",
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl", "--timeout", "5", "scan", "on",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             await proc.communicate()
         except Exception as e:
-            print(f"[RealBluetooth] Scan shell error: {e}")
+            print(f"[RealBluetooth] Scan exec error: {e}")
         
         try:
             all_output = await self._run_bluetoothctl("devices")
@@ -170,15 +288,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     addr = parts[1]
                     name = parts[2]
                     
-                    info_output = await self._run_bluetoothctl(f"info {addr}")
-                    is_connected = "Connected: yes" in info_output
+                    is_this_connected = (addr == self._state.device_address)
                     is_paired = addr in paired_addrs
                     
                     devices.append({
                         "id": addr,
                         "address": addr,
                         "name": name,
-                        "isConnected": is_connected,
+                        "isConnected": is_this_connected,
                         "isPaired": is_paired
                     })
             
@@ -191,19 +308,21 @@ class RealBluetoothModule(BluetoothModuleInterface):
     async def toggle_connection(self, mac_address: str, connect: bool) -> bool:
         cmd_action = "connect" if connect else "disconnect"
         try:
-            proc = await asyncio.create_subprocess_shell(
-                f"bluetoothctl {cmd_action} {mac_address}",
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl", cmd_action, mac_address,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            await proc.communicate()
+            stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
                 if not connect and self._state.device_address == mac_address:
                     self._state.connected = False
                     self._state.device_address = None
                     self._state.device_name = None
                 return True
-            return False
+            else:
+                print(f"[RealBluetooth] Connection toggle failed: {stderr.decode()} | {stdout.decode()}")
+                return False
         except Exception as e:
             print(f"[RealBluetooth] Exception toggling connection: {e}")
             return False
@@ -246,9 +365,9 @@ class RealBluetoothModule(BluetoothModuleInterface):
         for p in ["player0", "player1"]:
             player_path = f"/org/bluez/hci0/dev_{addr_underscore}/{p}"
             try:
-                cmd = f"dbus-send --system --print-reply --dest=org.bluez {player_path} org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1"
-                proc = await asyncio.create_subprocess_shell(
-                    cmd,
+                proc = await asyncio.create_subprocess_exec(
+                    "dbus-send", "--system", "--print-reply", "--dest=org.bluez",
+                    player_path, "org.freedesktop.DBus.Properties.GetAll", "string:org.bluez.MediaPlayer1",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
@@ -257,8 +376,8 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 if proc.returncode == 0:
                     output = stdout.decode()
                     return self._parse_dbus_properties(output)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[RealBluetooth] Error querying media status on {p}: {e}")
         return {"playback_status": "stopped", "current_track": None}
 
     def _parse_dbus_properties(self, output: str) -> Dict[str, Any]:
@@ -327,9 +446,9 @@ class RealBluetoothModule(BluetoothModuleInterface):
         for p in ["player0", "player1"]:
             player_path = f"/org/bluez/hci0/dev_{addr_underscore}/{p}"
             try:
-                cmd = f"dbus-send --system --print-reply --dest=org.bluez {player_path} org.bluez.MediaPlayer1.{action}"
-                proc = await asyncio.create_subprocess_shell(
-                    cmd,
+                proc = await asyncio.create_subprocess_exec(
+                    "dbus-send", "--system", "--print-reply", "--dest=org.bluez",
+                    player_path, f"org.bluez.MediaPlayer1.{action}",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
