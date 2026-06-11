@@ -187,6 +187,10 @@ usermod -aG video,input,audio,bluetooth,tty,render,pulse-access,netdev "$USER_NA
 systemctl enable --now seatd || true
 gpasswd -a "$USER_NAME" seat || true
 
+# --- 5.0 Ripristino Proprietario Progetto ---
+echo ">>> Ripristino proprietario cartella di progetto..."
+chown -R "$USER_NAME:$USER_NAME" "$PROJECT_DIR"
+
 # --- 5.1 Pulizia cache Python (evita errori "bad magic number" da file .pyc del Mac) ---
 echo ">>> Pulizia cache Python..."
 find "$PROJECT_DIR" -name '*.pyc' -delete
