@@ -129,7 +129,8 @@ sed -i '/Class =/d' /etc/bluetooth/main.conf
 sed -i '/DiscoverableTimeout =/d' /etc/bluetooth/main.conf
 sed -i '/Name =/d' /etc/bluetooth/main.conf
 sed -i '/ControllerVersion =/d' /etc/bluetooth/main.conf
-sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 120\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nControllerVersion = 1.6\nName = MITO-fr' /etc/bluetooth/main.conf
+sed -i '/Experimental =/d' /etc/bluetooth/main.conf
+sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 120\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nControllerVersion = 1.6\nExperimental = true\nName = MITO-fr' /etc/bluetooth/main.conf
 
 # Abilita le funzionalità sperimentali di bluetoothd per AVRCP 1.6 / BIP (necessario per Cover Art)
 if [[ -f /lib/systemd/system/bluetooth.service ]]; then
