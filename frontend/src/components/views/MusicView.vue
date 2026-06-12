@@ -25,8 +25,15 @@
       <div class="flex-1 flex flex-col justify-between h-full pt-8 pb-4 min-w-0 z-10 relative">
         
         <!-- Titolo e Artista -->
-        <div class="pr-1">
-          <h1 class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 line-clamp-1">{{ currentTitle }}</h1>
+        <div class="pr-1 overflow-hidden w-full relative">
+          <h1 
+            ref="titleRef" 
+            class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 inline-block whitespace-nowrap transition-transform"
+            :class="{ 'animate-marquee': isOverflowing }"
+            :style="{ '--scroll-distance': scrollDistance }"
+          >
+            {{ currentTitle }}
+          </h1>
           <p class="font-title-sm text-[28px] font-medium text-[#ddb7ff]">{{ currentArtist }}</p>
         </div>
 
@@ -93,8 +100,15 @@
           <div class="w-32 h-32 bg-[#1c1c1e] rounded-2xl overflow-hidden shadow-2xl border border-white/5 shrink-0">
             <img :src="currentCover" class="w-full h-full object-cover" />
           </div>
-          <div class="text-center">
-            <h2 class="font-display-lg text-[22px] font-semibold text-white mb-0.5 line-clamp-1">{{ currentTitle }}</h2>
+          <div class="text-center w-full overflow-hidden relative">
+            <h2 
+              ref="titleLyricsRef" 
+              class="font-display-lg text-[22px] font-semibold text-white mb-0.5 inline-block whitespace-nowrap transition-transform"
+              :class="{ 'animate-marquee': isOverflowingLyrics }"
+              :style="{ '--scroll-distance': scrollDistanceLyrics }"
+            >
+              {{ currentTitle }}
+            </h2>
             <p class="font-title-sm text-[15px] font-medium text-[#ddb7ff]">{{ currentArtist }}</p>
           </div>
         </div>
@@ -133,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAudioStore } from '@/stores/audio'
 import songPlaceholder from '@/assets/song-placeholder.png'
@@ -248,4 +262,73 @@ const handleSeek = (event: Event) => {
     audioStore.seekLocal(Number(target.value))
   }
 }
+
+// Marquee logic
+const titleRef = ref<HTMLElement | null>(null)
+const isOverflowing = ref(false)
+const scrollDistance = ref('0px')
+
+const titleLyricsRef = ref<HTMLElement | null>(null)
+const isOverflowingLyrics = ref(false)
+const scrollDistanceLyrics = ref('0px')
+
+const checkOverflow = () => {
+  nextTick(() => {
+    // Standard player title
+    if (titleRef.value && titleRef.value.parentElement) {
+      const containerWidth = titleRef.value.parentElement.clientWidth
+      const textWidth = titleRef.value.scrollWidth
+      if (textWidth > containerWidth) {
+        isOverflowing.value = true
+        scrollDistance.value = `-${textWidth - containerWidth}px`
+      } else {
+        isOverflowing.value = false
+        scrollDistance.value = '0px'
+      }
+    }
+    // Lyrics player title
+    if (titleLyricsRef.value && titleLyricsRef.value.parentElement) {
+      const containerWidth = titleLyricsRef.value.parentElement.clientWidth
+      const textWidth = titleLyricsRef.value.scrollWidth
+      if (textWidth > containerWidth) {
+        isOverflowingLyrics.value = true
+        scrollDistanceLyrics.value = `-${textWidth - containerWidth}px`
+      } else {
+        isOverflowingLyrics.value = false
+        scrollDistanceLyrics.value = '0px'
+      }
+    }
+  })
+}
+
+watch(currentTitle, () => {
+  checkOverflow()
+})
+
+watch(showLyrics, () => {
+  checkOverflow()
+})
+
+onMounted(() => {
+  checkOverflow()
+  window.addEventListener('resize', checkOverflow)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkOverflow)
+})
 </script>
+
+<style scoped>
+@keyframes marquee {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  80%, 100% {
+    transform: translateX(var(--scroll-distance));
+  }
+}
+.animate-marquee {
+  animation: marquee 8s ease-in-out infinite alternate;
+}
+</style>

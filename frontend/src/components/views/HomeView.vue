@@ -7,7 +7,16 @@
       <div class="absolute inset-0 bg-gradient-to-t from-[#0e0e0e]/80 via-transparent to-[#0e0e0e]/30"></div>
       <div class="relative h-full flex flex-col justify-between p-[32px] z-10">
         <div>
-          <h2 class="font-display-lg text-[48px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#e2e2e2] mb-2 line-clamp-1">{{ currentTitle }}</h2>
+          <div class="overflow-hidden w-full relative">
+            <h2 
+              ref="titleRef" 
+              class="font-display-lg text-[48px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#e2e2e2] mb-2 inline-block whitespace-nowrap transition-transform"
+              :class="{ 'animate-marquee': isOverflowing }"
+              :style="{ '--scroll-distance': scrollDistance }"
+            >
+              {{ currentTitle }}
+            </h2>
+          </div>
           <p class="font-title-sm text-[20px] font-semibold leading-[1.4] text-[#ddb7ff]">{{ currentArtist }}</p>
         </div>
         <div class="flex flex-col gap-6" @click.stop>
@@ -87,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useBluetooth } from '@/composables/useBluetooth'
@@ -206,4 +215,52 @@ const handleSeek = (event: Event) => {
     audioStore.seekLocal(Number(target.value))
   }
 }
+
+// Marquee logic
+const titleRef = ref<HTMLElement | null>(null)
+const isOverflowing = ref(false)
+const scrollDistance = ref('0px')
+
+const checkOverflow = () => {
+  nextTick(() => {
+    if (titleRef.value && titleRef.value.parentElement) {
+      const containerWidth = titleRef.value.parentElement.clientWidth
+      const textWidth = titleRef.value.scrollWidth
+      if (textWidth > containerWidth) {
+        isOverflowing.value = true
+        scrollDistance.value = `-${textWidth - containerWidth}px`
+      } else {
+        isOverflowing.value = false
+        scrollDistance.value = '0px'
+      }
+    }
+  })
+}
+
+watch(currentTitle, () => {
+  checkOverflow()
+})
+
+onMounted(() => {
+  checkOverflow()
+  window.addEventListener('resize', checkOverflow)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkOverflow)
+})
 </script>
+
+<style scoped>
+@keyframes marquee {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  80%, 100% {
+    transform: translateX(var(--scroll-distance));
+  }
+}
+.animate-marquee {
+  animation: marquee 8s ease-in-out infinite alternate;
+}
+</style>
