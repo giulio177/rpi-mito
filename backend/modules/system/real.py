@@ -59,49 +59,63 @@ class RealSystemModule:
             return {"commit": "unknown", "branch": "unknown"}
 
     async def update_app(self) -> Dict[str, Any]:
-        """Run the OTA update script: git pull, rebuild frontend, restart services."""
-        UPDATE_SCRIPT = os.path.join(PROJECT_DIR, "update.sh")
+        """Run the full OTA update: git pull, chmod, run install script, then reboot."""
         try:
-            logger.info("[System] Starting OTA update via update.sh...")
+            # 1. Pull latest code from git
+            logger.info("[System] Fetching and resetting to origin/main...")
+            git_ok, git_out, git_err = await _run("git fetch origin main && git reset --hard origin/main")
+            if not git_ok:
+                logger.error(f"[System] Git pull failed: {git_err}")
+                return {"success": False, "message": f"Errore Git: {git_err}"}
+
+            # 2. Chmod +x on installer
+            INSTALL_SCRIPT = os.path.join(PROJECT_DIR, "install_rpi-mito.sh")
+            logger.info(f"[System] Setting execution permission on {INSTALL_SCRIPT}...")
+            chmod_ok, _, chmod_err = await _run(f"chmod +x {INSTALL_SCRIPT}")
+            if not chmod_ok:
+                logger.error(f"[System] Chmod failed: {chmod_err}")
+                return {"success": False, "message": f"Errore Chmod: {chmod_err}"}
+
+            # 3. Execute installer script
+            logger.info("[System] Running installer script (this might take a few minutes)...")
             proc = await asyncio.create_subprocess_shell(
-                f"sudo {UPDATE_SCRIPT}",
+                f"sudo {INSTALL_SCRIPT}",
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,  # merge stderr into stdout
+                stderr=asyncio.subprocess.STDOUT,
                 cwd=PROJECT_DIR
             )
+            
             try:
-                # Allow up to 5 minutes for npm build on Pi
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+                # Allow up to 10 minutes for full install & build
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
             except asyncio.TimeoutError:
                 proc.kill()
-                return {"success": False, "message": "Timeout: aggiornamento troppo lungo (>5 min)."}
+                return {"success": False, "message": "Timeout: l'installazione ha impiegato più di 10 minuti."}
 
             output = stdout.decode().strip()
-            if proc.returncode == 0:
-                logger.info(f"[System] OTA update script finished: {output}")
-                
-                # Leggiamo cosa dobbiamo riavviare
-                manifest_path = os.path.join(PROJECT_DIR, "update_manifest.json")
-                manifest = {"restart_backend": False, "restart_kiosk": False}
-                if os.path.exists(manifest_path):
-                    try:
-                        with open(manifest_path, "r") as f:
-                            manifest = json.load(f)
-                    except:
-                        pass
-                
-                return {
-                    "success": True, 
-                    "message": output,
-                    "needs_restart": manifest
-                }
-            else:
-                logger.error(f"[System] OTA update failed: {output}")
-                return {"success": False, "message": output}
+            if proc.returncode != 0:
+                logger.error(f"[System] Installation script failed: {output}")
+                return {"success": False, "message": f"Errore Installazione:\n{output}"}
+
+            logger.info("[System] Installation complete. Scheduling reboot...")
+            
+            # 4. Schedule full reboot after 2 seconds to allow sending response
+            asyncio.create_task(self._reboot_after_delay(2.0))
+            
+            return {
+                "success": True,
+                "message": "Aggiornamento completato con successo. Il sistema si sta riavviando...",
+                "rebooting": True
+            }
 
         except Exception as e:
             logger.error(f"[System] update_app error: {e}")
             return {"success": False, "message": str(e)}
+
+    async def _reboot_after_delay(self, delay: float):
+        await asyncio.sleep(delay)
+        logger.info("[System] Executing reboot command now.")
+        await _run("sudo reboot")
 
     async def reboot_app(self) -> Dict[str, Any]:
         """Restart only the kiosk service (soft reload)."""

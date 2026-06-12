@@ -401,6 +401,29 @@
       </div>
     </Transition>
   </Teleport>
+
+  <!-- MODAL DI RIAVVIO IN CORSO -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showRebootingModal" class="fixed inset-0 z-[10000] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-xl"></div>
+        <div class="relative bg-[#1c1c1e] border border-white/10 w-[450px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 items-center text-center">
+          <div class="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center animate-pulse">
+            <span class="material-symbols-outlined text-orange-400 text-4xl">restart_alt</span>
+          </div>
+          <div>
+            <h3 class="text-2xl font-bold text-white mb-2">Aggiornamento completato</h3>
+            <p class="text-white/60">
+              Il codice è stato aggiornato ed il sistema si sta riavviando per applicare le modifiche.
+            </p>
+            <p class="text-white/40 text-sm mt-4">
+              L'interfaccia si ricaricherà automaticamente tra pochi secondi.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -512,6 +535,7 @@ const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
 // Modal di aggiornamento (Manifesto)
 const showUpdateModal = ref(false)
 const updateManifest = ref({ restart_backend: false, restart_kiosk: false })
+const showRebootingModal = ref(false)
 
 onMounted(async () => {
   try {
@@ -530,8 +554,10 @@ const handleUpdate = async () => {
     const res = await fetch(`${API}/api/system/update`, { method: 'POST' })
     const data = await res.json()
     if (data.success) {
-      updateLog.value = '✓ Aggiornamento scaricato con successo.'
-      if (data.needs_restart && (data.needs_restart.restart_backend || data.needs_restart.restart_kiosk)) {
+      updateLog.value = '✓ Aggiornamento completato con successo.'
+      if (data.rebooting) {
+        showRebootingModal.value = true
+      } else if (data.needs_restart && (data.needs_restart.restart_backend || data.needs_restart.restart_kiosk)) {
         updateManifest.value = data.needs_restart
         showUpdateModal.value = true
       } else {
@@ -561,12 +587,18 @@ const triggerAction = (action: 'reboot' | 'shutdown') => {
 }
 
 const executePendingAction = async () => {
+  const isReboot = pendingAction.value === 'reboot'
   showConfirmModal.value = false
   isPowerBusy.value = true
   try {
     const endpoint = pendingAction.value === 'shutdown'
       ? `${API}/api/system/shutdown`
       : `${API}/api/system/reboot`
+    
+    if (isReboot) {
+      showRebootingModal.value = true
+    }
+    
     await fetch(endpoint, { method: 'POST' })
   } finally {
     isPowerBusy.value = false

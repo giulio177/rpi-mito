@@ -325,6 +325,7 @@ chmod +x "$PROJECT_DIR/update.sh"
 cat >/etc/sudoers.d/mito_permissions <<EOF
 # Permessi per l'infotainment senza password
 $USER_NAME ALL=(ALL) NOPASSWD: $PROJECT_DIR/update.sh
+$USER_NAME ALL=(ALL) NOPASSWD: $PROJECT_DIR/install_rpi-mito.sh
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/sbin/reboot
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/sbin/poweroff
 $USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mito-kiosk.service
