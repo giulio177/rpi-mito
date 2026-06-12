@@ -3,32 +3,32 @@
     
     <!-- Left Panel: Media Player -->
     <div @click="router.push('/music')" class="col-span-7 rounded-3xl overflow-hidden relative bg-white/5 backdrop-blur-2xl border border-white/10 group cursor-pointer transition-all hover:border-white/20">
-      <div class="absolute inset-0 bg-cover bg-center brightness-50 mix-blend-overlay group-hover:scale-105 transition-transform duration-1000 ease-out" :style="{ backgroundImage: `url(${songPlaceholder})` }"></div>
+      <div class="absolute inset-0 bg-cover bg-center brightness-50 mix-blend-overlay group-hover:scale-105 transition-transform duration-1000 ease-out" :style="{ backgroundImage: `url(${currentCover})` }"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-[#0e0e0e]/80 via-transparent to-[#0e0e0e]/30"></div>
       <div class="relative h-full flex flex-col justify-between p-[32px] z-10">
         <div>
-          <h2 class="font-display-lg text-[48px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#e2e2e2] mb-2">Midnight City</h2>
-          <p class="font-title-sm text-[20px] font-semibold leading-[1.4] text-[#ddb7ff]">M83</p>
+          <h2 class="font-display-lg text-[48px] font-semibold leading-[1.1] tracking-[-0.02em] text-[#e2e2e2] mb-2 line-clamp-1">{{ currentTitle }}</h2>
+          <p class="font-title-sm text-[20px] font-semibold leading-[1.4] text-[#ddb7ff]">{{ currentArtist }}</p>
         </div>
         <div class="flex flex-col gap-6" @click.stop>
           <div class="w-full flex items-center gap-4">
-            <span class="text-[#cfc2d6] text-sm font-medium">1:24</span>
+            <span class="text-[#cfc2d6] text-sm font-medium w-12 text-right">{{ currentTimeText }}</span>
             <div class="relative flex-1 h-1.5 bg-white/20 rounded-full">
               <!-- Parte Riempita -->
-              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: songProgress + '%' }"></div>
+              <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.5)] pointer-events-none" :style="{ width: progressPercent + '%' }"></div>
               <!-- Input Range Invisibile Interattivo -->
-              <input type="range" min="0" max="100" v-model="songProgress" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+              <input type="range" min="0" max="100" v-model.number="progressPercent" @input="handleSeek" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
             </div>
-            <span class="text-[#cfc2d6] text-sm font-medium">-2:40</span>
+            <span class="text-[#cfc2d6] text-sm font-medium w-12 text-left">{{ remainingTimeText }}</span>
           </div>
           <div class="flex justify-center items-center gap-8">
-            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+            <button @click="handlePrev" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
               <span class="material-symbols-outlined text-[28px] text-[#e2e2e2]">skip_previous</span>
             </button>
-            <button @click="isPlaying = !isPlaying" class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
+            <button @click="togglePlay" class="w-[72px] h-[72px] flex items-center justify-center rounded-[24px] bg-[#ddb7ff] text-[#490080] hover:scale-105 transition-transform shadow-[0_0_30px_rgba(221,183,255,0.3)]">
               <span class="material-symbols-outlined filled text-[40px]">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
             </button>
-            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
+            <button @click="handleNext" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-md">
               <span class="material-symbols-outlined text-[28px] text-[#e2e2e2]">skip_next</span>
             </button>
           </div>
@@ -87,14 +87,123 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useBluetooth } from '@/composables/useBluetooth'
+import { useAudioStore } from '@/stores/audio'
 import songPlaceholder from '@/assets/song-placeholder.png'
 import battery100 from '@/assets/battery/battery.100percent.svg'
 
 const router = useRouter()
 const { connectedDevice, favoriteDevice, connectToFavorite } = useBluetooth()
-const isPlaying = ref(false)
-const songProgress = ref(33)
+
+const audioStore = useAudioStore()
+const { localCurrentSong, isLocalPlaying, localProgress } = storeToRefs(audioStore)
+
+const formatDuration = (seconds: number) => {
+  if (!seconds || isNaN(seconds)) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+const currentTitle = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return audioStore.currentTrack.title
+  }
+  return localCurrentSong.value?.title || 'Seleziona un brano'
+})
+
+const currentArtist = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return audioStore.currentTrack.artist
+  }
+  return localCurrentSong.value?.artist || 'Libreria'
+})
+
+const currentCover = computed(() => {
+  if (audioStore.currentSource === 'bluetooth') {
+    return songPlaceholder
+  }
+  return localCurrentSong.value?.coverUrl || songPlaceholder
+})
+
+const isPlaying = computed(() => {
+  if (audioStore.currentSource === 'bluetooth') {
+    return audioStore.playbackStatus === 'playing'
+  }
+  return isLocalPlaying.value
+})
+
+const progressPercent = computed({
+  get() {
+    if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+      const duration = audioStore.currentTrack.duration || 1
+      const pos = audioStore.currentTrack.position || 0
+      return Math.min(100, Math.max(0, (pos / duration) * 100))
+    }
+    return localProgress.value
+  },
+  set(val: number) {
+    if (audioStore.currentSource !== 'bluetooth') {
+      audioStore.seekLocal(val)
+    }
+  }
+})
+
+const currentTimeText = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    return formatDuration(audioStore.currentTrack.position || 0)
+  }
+  if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
+  const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
+  return formatDuration(currentSecs)
+})
+
+const remainingTimeText = computed(() => {
+  if (audioStore.currentSource === 'bluetooth' && audioStore.currentTrack) {
+    const duration = audioStore.currentTrack.duration || 0
+    const pos = audioStore.currentTrack.position || 0
+    return '-' + formatDuration(Math.max(0, duration - pos))
+  }
+  if (!localCurrentSong.value || !localCurrentSong.value.rawDuration) return '0:00'
+  const currentSecs = (localProgress.value / 100) * localCurrentSong.value.rawDuration
+  return '-' + formatDuration(localCurrentSong.value.rawDuration - currentSecs)
+})
+
+const togglePlay = () => {
+  if (audioStore.currentSource === 'bluetooth') {
+    if (isPlaying.value) {
+      audioStore.pauseBluetooth()
+    } else {
+      audioStore.playBluetooth()
+    }
+  } else {
+    audioStore.toggleLocalPlay()
+  }
+}
+
+const handlePrev = () => {
+  if (audioStore.currentSource === 'bluetooth') {
+    audioStore.prevBluetooth()
+  } else {
+    audioStore.playPrevious()
+  }
+}
+
+const handleNext = () => {
+  if (audioStore.currentSource === 'bluetooth') {
+    audioStore.nextBluetooth()
+  } else {
+    audioStore.playNext()
+  }
+}
+
+const handleSeek = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (audioStore.currentSource !== 'bluetooth') {
+    audioStore.seekLocal(Number(target.value))
+  }
+}
 </script>
