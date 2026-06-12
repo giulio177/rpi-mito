@@ -394,6 +394,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def unpair(self, address: str) -> bool:
         address = address.upper()
+        # Always remove from state and persistence first to ensure it's forgotten
+        self._state.available_devices = [d for d in self._state.available_devices if d["address"] != address]
+        try:
+            from core import persistence
+            persistence.remove_remembered_bluetooth(address)
+        except Exception as pe:
+            print(f"[RealBluetooth] Error removing device from persistence: {pe}")
+
         try:
             if self._state.device_address and self._state.device_address.upper() == address:
                 await self.disconnect()
@@ -403,20 +411,12 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
-            if proc.returncode == 0:
-                self._state.available_devices = [d for d in self._state.available_devices if d["address"] != address]
-                try:
-                    from core import persistence
-                    persistence.remove_remembered_bluetooth(address)
-                except Exception as pe:
-                    print(f"[RealBluetooth] Error removing device from persistence: {pe}")
-                return True
-            else:
-                print(f"[RealBluetooth] Remove failed: {stderr.decode()} | {stdout.decode()}")
-                return False
+            if proc.returncode != 0:
+                print(f"[RealBluetooth] bluetoothctl remove failed or device not paired in BlueZ: {stderr.decode()} | {stdout.decode()}")
+            return True
         except Exception as e:
             print(f"[RealBluetooth] Exception unpairing device: {e}")
-            return False
+            return True
 
     async def _disable_discoverable(self):
         await asyncio.sleep(60)
