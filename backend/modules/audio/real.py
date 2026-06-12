@@ -143,6 +143,7 @@ class RealAudioModule(AudioModuleInterface):
             "playback_status": playback_status,
             "current_track": current_track,
             "source": current_source,
+            "current_source": current_source,
         }
 
     async def _sync_volume(self):

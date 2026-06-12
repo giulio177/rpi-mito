@@ -91,7 +91,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
                         continue
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
-                        conn_address = parts[1]
+                        conn_address = parts[1].upper()
                         conn_name = parts[2]
                         any_connected = True
                         break  # Infotainment currently focuses on the main connected device
@@ -117,12 +117,16 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 
                 if card_ready_in_pulse and not any_connected:
                     addr_underscore = card_match.group(1)
-                    conn_address = addr_underscore.replace("_", ":")
+                    conn_address = addr_underscore.replace("_", ":").upper()
                     any_connected = True
                     info_output = await self._run_bluetoothctl(f"info {conn_address}")
                     name_match = re.search(r'Name:\s*(.*)', info_output)
                     conn_name = name_match.group(1).strip() if name_match else "Connected Device"
                 
+                # Auto-trust connected device so connection is saved/trusted
+                if any_connected and conn_address:
+                    await self._run_bluetoothctl(f"trust {conn_address}")
+
                 # 3. Get all paired devices
                 paired_output = await self._run_bluetoothctl("paired-devices")
                 paired_devices = []
@@ -130,9 +134,9 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 for line in paired_output.splitlines():
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
-                        addr = parts[1]
+                        addr = parts[1].upper()
                         name = parts[2]
-                        is_this_connected = (addr == conn_address)
+                        is_this_connected = (conn_address is not None and addr == conn_address)
                         paired_devices.append({
                             "id": addr,
                             "address": addr,
@@ -274,16 +278,16 @@ class RealBluetoothModule(BluetoothModuleInterface):
             for line in paired_output.splitlines():
                 parts = line.split(None, 2)
                 if len(parts) >= 2 and parts[0] == "Device":
-                    paired_addrs.add(parts[1])
+                    paired_addrs.add(parts[1].upper())
             
             devices = []
             for line in all_output.splitlines():
                 parts = line.split(None, 2)
                 if len(parts) >= 3 and parts[0] == "Device":
-                    addr = parts[1]
+                    addr = parts[1].upper()
                     name = parts[2]
                     
-                    is_this_connected = (addr == self._state.device_address)
+                    is_this_connected = (self._state.device_address is not None and addr == self._state.device_address.upper())
                     is_paired = addr in paired_addrs
                     
                     devices.append({
@@ -301,8 +305,28 @@ class RealBluetoothModule(BluetoothModuleInterface):
             return self._state.available_devices
 
     async def toggle_connection(self, mac_address: str, connect: bool) -> bool:
+        mac_address = mac_address.upper()
         cmd_action = "connect" if connect else "disconnect"
         try:
+            if connect:
+                # First trust and pair, then connect to save the connection permanently
+                await self._run_bluetoothctl(f"trust {mac_address}")
+                try:
+                    proc_pair = await asyncio.create_subprocess_exec(
+                        "bluetoothctl", "pair", mac_address,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await asyncio.wait_for(proc_pair.communicate(), timeout=8.0)
+                except asyncio.TimeoutError:
+                    print(f"[RealBluetooth] Timeout pairing with {mac_address}, terminating...")
+                    try:
+                        proc_pair.terminate()
+                    except:
+                        pass
+                except Exception as pe:
+                    print(f"[RealBluetooth] Exception during pairing: {pe}")
+
             proc = await asyncio.create_subprocess_exec(
                 "bluetoothctl", cmd_action, mac_address,
                 stdout=asyncio.subprocess.PIPE,
@@ -310,7 +334,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
             )
             stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
-                if not connect and self._state.device_address == mac_address:
+                if not connect and self._state.device_address and self._state.device_address.upper() == mac_address:
                     self._state.connected = False
                     self._state.device_address = None
                     self._state.device_name = None
@@ -357,7 +381,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def _query_media_status(self, device_address: str) -> Dict[str, Any]:
         addr_underscore = device_address.replace(":", "_")
-        for p in ["player0", "player1"]:
+        for p in ["player0", "player1", "player2", "player3"]:
             player_path = f"/org/bluez/hci0/dev_{addr_underscore}/{p}"
             try:
                 proc = await asyncio.create_subprocess_exec(
@@ -379,6 +403,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
         status = "stopped"
         title = "Unknown Track"
         artist = "Unknown Artist"
+        album = "Unknown Album"
         duration = 0
         position = 0
         
@@ -390,18 +415,36 @@ class RealBluetoothModule(BluetoothModuleInterface):
         if position_match:
             position = int(position_match.group(1)) // 1000  # convert ms to seconds
             
-        track_block_match = re.search(r'string "Track"\s*\n\s*variant\s*array\s*\[\s*(.*?)\s*\]\s*\n\s*(\]|dict entry)', output, re.DOTALL)
-        if track_block_match:
-            track_block = track_block_match.group(1)
-            
-            title_match = re.search(r'string "Title"\s*\n\s*variant\s*string "([^"]+)"', track_block)
+        # Extract Track array using robust bracket matching
+        track_block = ""
+        track_start = output.find('string "Track"')
+        if track_start != -1:
+            array_start = output.find('array [', track_start)
+            if array_start != -1:
+                bracket_count = 1
+                idx = array_start + 7
+                while idx < len(output) and bracket_count > 0:
+                    if output[idx] == '[':
+                        bracket_count += 1
+                    elif output[idx] == ']':
+                        bracket_count -= 1
+                    idx += 1
+                if bracket_count == 0:
+                    track_block = output[array_start + 7 : idx - 1]
+
+        if track_block:
+            title_match = re.search(r'string "Title"\s*\n\s*variant\s*string "([^"]*)"', track_block)
             if title_match:
                 title = title_match.group(1)
                 
-            artist_match = re.search(r'string "Artist"\s*\n\s*variant\s*string "([^"]+)"', track_block)
+            artist_match = re.search(r'string "Artist"\s*\n\s*variant\s*string "([^"]*)"', track_block)
             if artist_match:
                 artist = artist_match.group(1)
                 
+            album_match = re.search(r'string "Album"\s*\n\s*variant\s*string "([^"]*)"', track_block)
+            if album_match:
+                album = album_match.group(1)
+
             duration_match = re.search(r'string "Duration"\s*\n\s*variant\s*uint32 (\d+)', track_block)
             if not duration_match:
                 duration_match = re.search(r'string "Duration"\s*\n\s*variant\s*uint64 (\d+)', track_block)
@@ -413,6 +456,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
             current_track = {
                 "title": title,
                 "artist": artist,
+                "album": album,
                 "duration": duration,
                 "position": position,
             }
@@ -438,7 +482,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
         if not self._state.connected or not self._state.device_address:
             return False
         addr_underscore = self._state.device_address.replace(":", "_")
-        for p in ["player0", "player1"]:
+        for p in ["player0", "player1", "player2", "player3"]:
             player_path = f"/org/bluez/hci0/dev_{addr_underscore}/{p}"
             try:
                 proc = await asyncio.create_subprocess_exec(

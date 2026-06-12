@@ -42,6 +42,7 @@ class MockAudioModule(AudioModuleInterface):
             "playback_status": self._state.playback_status,
             "current_track": self._state.current_track,
             "source": self._state.current_source,
+            "current_source": self._state.current_source,
         }
     
     def set_volume(self, level: int) -> bool:
