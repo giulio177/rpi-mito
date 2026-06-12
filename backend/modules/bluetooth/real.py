@@ -255,6 +255,15 @@ class RealBluetoothModule(BluetoothModuleInterface):
                         if proc_load.returncode == 0:
                             self._loopback_loaded = True
                             print(f"[RealBluetooth] Loaded module-loopback successfully for source {source_name}")
+                            try:
+                                proc_vol = await asyncio.create_subprocess_exec(
+                                    "pactl", "set-source-volume", source_name, "100%",
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE
+                                )
+                                await proc_vol.communicate()
+                            except Exception as ve:
+                                print(f"[RealBluetooth] Error setting Bluetooth source volume: {ve}")
                         else:
                             print(f"[RealBluetooth] Failed to load module-loopback: {stderr_load.decode().strip()}")
                     except Exception as le:
