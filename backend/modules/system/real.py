@@ -59,7 +59,7 @@ class RealSystemModule:
             return {"commit": "unknown", "branch": "unknown"}
 
     async def pull_code(self) -> Dict[str, Any]:
-        """Perform a git pull (fetch & reset hard) and return if changes were found."""
+        """Perform system update by running update.sh (which pulls code and builds frontend)."""
         try:
             logger.info("[System] Fetching from git origin/main...")
             ok_fetch, _, fetch_err = await _run("git fetch origin main")
@@ -79,7 +79,7 @@ class RealSystemModule:
                     "message": "Il codice del sistema è già aggiornato all'ultima versione."
                 }
             
-            # Check if install_rpi-mito.sh has changes before resetting
+            # Check if install_rpi-mito.sh has changes before running update
             logger.info("[System] Checking if install_rpi-mito.sh was modified...")
             diff_ok, diff_out, _ = await _run("git diff --name-only HEAD origin/main")
             install_required = False
@@ -88,18 +88,34 @@ class RealSystemModule:
                 install_required = any("install_rpi-mito.sh" in f for f in changed_files)
                 logger.info(f"[System] install_rpi-mito.sh changed: {install_required}")
             
-            # Reset hard to origin/main to pull the updates
-            logger.info("[System] Resetting repository to origin/main...")
-            ok_reset, reset_out, reset_err = await _run("git reset --hard origin/main")
-            if not ok_reset:
-                logger.error(f"[System] Git reset hard failed: {reset_err}")
-                return {"success": False, "message": f"Errore Git reset: {reset_err}"}
+            # Run the update script which pulls and runs build if needed
+            UPDATE_SCRIPT = os.path.join(PROJECT_DIR, "update.sh")
+            logger.info(f"[System] Running update script: {UPDATE_SCRIPT}...")
+            await _run(f"chmod +x {UPDATE_SCRIPT}")
+            
+            ok_update, update_out, update_err = await _run(UPDATE_SCRIPT)
+            if not ok_update:
+                logger.error(f"[System] update.sh failed: {update_err or update_out}")
+                return {"success": False, "message": f"Errore script aggiornamento: {update_err or update_out}"}
+
+            # Read the update manifest to determine if restarts/rebuilds occurred
+            manifest_path = os.path.join(PROJECT_DIR, "update_manifest.json")
+            changed = True
+            if os.path.exists(manifest_path):
+                try:
+                    with open(manifest_path, "r") as f:
+                        manifest = json.load(f)
+                    logger.info(f"[System] Update manifest read: {manifest}")
+                    changed = manifest.get("restart_backend", False) or manifest.get("restart_kiosk", False) or install_required
+                    os.remove(manifest_path)
+                except Exception as me:
+                    logger.error(f"[System] Error reading update manifest: {me}")
 
             return {
                 "success": True,
-                "changed": True,
+                "changed": changed,
                 "install_required": install_required,
-                "message": "Codice aggiornato scaricato con successo."
+                "message": "Codice aggiornato e compilato con successo."
             }
         except Exception as e:
             logger.error(f"[System] pull_code error: {e}")
