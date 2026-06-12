@@ -34,30 +34,68 @@ class RealAudioModule(AudioModuleInterface):
         await asyncio.sleep(2.0)
         
         try:
-            # 1. Discover sinks
+            target_sink = None
+            short_output = ""
+            
+            # 1. Query verbose list of sinks to check card/driver properties (like bcm2835 Headphones)
             proc = await asyncio.create_subprocess_exec(
-                "pactl", "list", "sinks", "short",
+                "pactl", "list", "sinks",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                print(f"[RealAudio] Failed to list sinks: {stderr.decode().strip()}")
-                return
-            
-            sinks_output = stdout.decode().strip()
-            target_sink = None
-            
-            # Look for any sink containing "analog-stereo" or "headphones" or "headphone" or "jack"
-            # Typical RPi onboard jack is: alsa_output.platform-bcm2835_audio.analog-stereo
-            for line in sinks_output.splitlines():
-                parts = line.split()
-                if len(parts) >= 2:
-                    sink_name = parts[1]
-                    if any(term in sink_name.lower() for term in ["analog-stereo", "headphones", "headphone", "jack"]):
+            if proc.returncode == 0:
+                output = stdout.decode()
+                sinks = output.split("Sink #")
+                for sink_block in sinks[1:]:
+                    name_match = re.search(r'^\s*Name:\s*(\S+)', sink_block, re.MULTILINE)
+                    if not name_match:
+                        continue
+                    sink_name = name_match.group(1)
+                    
+                    block_lower = sink_block.lower()
+                    if any(term in block_lower for term in ["headphones", "headphone", "analog-stereo", "bcm2835 headphones"]):
                         target_sink = sink_name
                         break
-            
+            else:
+                print(f"[RealAudio] Verbose pactl list sinks failed: {stderr.decode().strip()}")
+
+            # 2. Fallback 1: check pactl list sinks short for standard keywords
+            if not target_sink:
+                proc_short = await asyncio.create_subprocess_exec(
+                    "pactl", "list", "sinks", "short",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout_short, _ = await proc_short.communicate()
+                short_output = stdout_short.decode().strip()
+                for line in short_output.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        name = parts[1]
+                        if any(term in name.lower() for term in ["analog-stereo", "headphones", "headphone", "jack"]):
+                            target_sink = name
+                            break
+
+            # 3. Fallback 2: if there is any sink ending with .2 (typically analog headphones on mailbox VC4 drivers)
+            if not target_sink:
+                if not short_output:
+                    proc_short = await asyncio.create_subprocess_exec(
+                        "pactl", "list", "sinks", "short",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout_short, _ = await proc_short.communicate()
+                    short_output = stdout_short.decode().strip()
+                
+                for line in short_output.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        name = parts[1]
+                        if "mailbox" in name and name.endswith(".2"):
+                            target_sink = name
+                            break
+
             if target_sink:
                 print(f"[RealAudio] Found analog output sink: {target_sink}")
                 # Set as default sink
