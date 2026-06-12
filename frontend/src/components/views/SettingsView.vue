@@ -695,14 +695,15 @@ const handleUpdate = async () => {
       updateSteps.value[1].status = 'skipped'
       updateSteps.value[1].subtext = 'Lo script di installazione non è cambiato.'
       
-      updateSteps.value[2].status = 'running'
-      updateSteps.value[2].subtext = 'Riavvio dell\'applicazione richiesto per completare.'
-      updateLog.value = '✓ Aggiornamento scaricato. Riavvio dell\'applicazione richiesto.'
+      updateSteps.value[2].status = 'success'
+      updateSteps.value[2].subtext = 'Riavvio automatico dei servizi in corso...'
+      updateLog.value = '✓ Aggiornamento completato con successo. Riavvio in corso...'
       
-      // Open app-only restart confirmation modal
-      isUpdateReboot.value = true
-      pendingAction.value = 'reboot-app'
-      showConfirmModal.value = true
+      // Automatic app restart after 1.5 seconds to apply changes
+      setTimeout(async () => {
+        pendingAction.value = 'reboot-app'
+        await executePendingAction()
+      }, 1500)
     }
     
   } catch (e: any) {
