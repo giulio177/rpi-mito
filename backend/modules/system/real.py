@@ -75,8 +75,18 @@ class RealSystemModule:
                 return {
                     "success": True,
                     "changed": False,
+                    "install_required": False,
                     "message": "Il codice del sistema è già aggiornato all'ultima versione."
                 }
+            
+            # Check if install_rpi-mito.sh has changes before resetting
+            logger.info("[System] Checking if install_rpi-mito.sh was modified...")
+            diff_ok, diff_out, _ = await _run("git diff --name-only HEAD origin/main")
+            install_required = False
+            if diff_ok:
+                changed_files = diff_out.splitlines()
+                install_required = any("install_rpi-mito.sh" in f for f in changed_files)
+                logger.info(f"[System] install_rpi-mito.sh changed: {install_required}")
             
             # Reset hard to origin/main to pull the updates
             logger.info("[System] Resetting repository to origin/main...")
@@ -88,7 +98,8 @@ class RealSystemModule:
             return {
                 "success": True,
                 "changed": True,
-                "message": "Codice aggiornato scaricato con successo. Installazione richiesta."
+                "install_required": install_required,
+                "message": "Codice aggiornato scaricato con successo."
             }
         except Exception as e:
             logger.error(f"[System] pull_code error: {e}")
@@ -138,16 +149,22 @@ class RealSystemModule:
         await _run("sudo reboot")
 
     async def reboot_app(self) -> Dict[str, Any]:
-        """Restart only the kiosk service (soft reload)."""
+        """Restart backend and kiosk services in the background (soft reload)."""
         try:
-            ok, _, stderr = await _run(f"sudo systemctl restart {KIOSK_SERVICE}")
-            if not ok:
-                logger.error(f"[System] reboot_app failed: {stderr}")
-                return {"success": False, "message": stderr}
-            return {"success": True, "message": "Kiosk service restarted"}
+            # Schedule the service restart in a background task so we can send the HTTP response first
+            asyncio.create_task(self._restart_services_task())
+            return {"success": True, "message": "Riavvio dei servizi app avviato"}
         except Exception as e:
             logger.error(f"[System] reboot_app error: {e}")
             return {"success": False, "message": str(e)}
+
+    async def _restart_services_task(self):
+        logger.info("[System] Starting background application services restart...")
+        await asyncio.sleep(1.0)
+        # 1. Restart kiosk (Chromium)
+        await _run(f"sudo systemctl restart {KIOSK_SERVICE}")
+        # 2. Restart backend (this uvicorn process, which systemd will restart)
+        await _run(f"sudo systemctl restart {BACKEND_SERVICE}")
 
     async def reboot_system(self) -> Dict[str, Any]:
         """Schedule a full system reboot (non-blocking)."""

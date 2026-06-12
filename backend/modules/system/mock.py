@@ -24,6 +24,7 @@ class MockSystemModule:
         return {
             "success": True,
             "changed": True,
+            "install_required": True,
             "message": "Codice mock scaricato con successo. Installazione richiesta. (mock)"
         }
 

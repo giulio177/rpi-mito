@@ -71,9 +71,45 @@
             <span>{{ isUpdating ? 'Aggiornamento in corso...' : 'Cerca Aggiornamenti (Pull da GitHub)' }}</span>
           </button>
 
-          <!-- Feedback aggiornamento -->
-          <div v-if="updateLog" class="rounded-xl px-4 py-3 text-sm font-mono bg-white/5 border border-white/10 text-white/50 whitespace-pre-wrap">
-            {{ updateLog }}
+          <!-- Feedback aggiornamento in più parti (checklist) -->
+          <div v-if="hasUpdated" class="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 class="text-sm font-bold text-white/50 uppercase tracking-wider">Stato Aggiornamento</h3>
+              <span v-if="isUpdating" class="text-xs text-[#ddb7ff] animate-pulse font-medium">Elaborazione in corso...</span>
+              <span v-else class="text-xs text-white/40 font-medium">Completato</span>
+            </div>
+            
+            <div class="flex flex-col gap-3.5">
+              <div v-for="step in updateSteps" :key="step.id" class="flex items-start gap-3 text-sm">
+                <!-- Status icon/spinner -->
+                <div class="shrink-0 mt-0.5">
+                  <span v-if="step.status === 'running'" class="material-symbols-outlined animate-spin text-[#ddb7ff] text-[18px]">progress_activity</span>
+                  <span v-else-if="step.status === 'success'" class="material-symbols-outlined text-green-400 text-[18px]">check_circle</span>
+                  <span v-else-if="step.status === 'skipped'" class="material-symbols-outlined text-white/30 text-[18px]">block</span>
+                  <span v-else-if="step.status === 'failed'" class="material-symbols-outlined text-red-400 text-[18px]">cancel</span>
+                  <span v-else class="material-symbols-outlined text-white/20 text-[18px]">circle</span>
+                </div>
+                
+                <!-- Label and subtext -->
+                <div class="flex-1">
+                  <p class="font-medium" :class="{
+                    'text-white': step.status === 'running' || step.status === 'success',
+                    'text-white/40': step.status === 'idle' || step.status === 'skipped',
+                    'text-red-400': step.status === 'failed'
+                  }">
+                    {{ step.label }}
+                  </p>
+                  <p v-if="step.subtext" class="text-xs text-white/50 mt-1 leading-relaxed font-mono">
+                    {{ step.subtext }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Messaggio riepilogativo o errore generico -->
+            <div v-if="updateLog" class="text-xs font-mono bg-black/25 border border-white/5 rounded-xl p-3 text-white/60 whitespace-pre-wrap">
+              {{ updateLog }}
+            </div>
           </div>
         </div>
 
@@ -87,7 +123,7 @@
           <!-- Riavvia solo app -->
           <button
             id="btn-reboot-app"
-            @click="handleRebootApp"
+            @click="triggerAction('reboot-app')"
             :disabled="isPowerBusy"
             class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-[0.98] disabled:opacity-60 text-left"
           >
@@ -333,37 +369,52 @@
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="showConfirmModal" class="fixed inset-0 z-[9999] flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showConfirmModal = false"></div>
-        <div class="relative bg-[#1c1c1e] border border-white/10 rounded-3xl p-8 w-80 flex flex-col gap-6 shadow-2xl">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeConfirmModal"></div>
+        <div class="relative bg-[#1c1c1e] border border-white/10 rounded-[35px] p-8 w-[380px] flex flex-col gap-6 shadow-2xl animate-in zoom-in-95 duration-200">
           <div class="flex flex-col items-center gap-3 text-center">
-            <span class="material-symbols-outlined text-[48px]"
-                  :class="pendingAction === 'shutdown' ? 'text-red-400' : 'text-orange-400'">
-              {{ pendingAction === 'shutdown' ? 'power_settings_new' : 'restart_alt' }}
-            </span>
-            <h3 class="text-xl font-bold">
+            <div class="w-16 h-16 rounded-full flex items-center justify-center"
+                 :class="pendingAction === 'shutdown' ? 'bg-red-500/20 text-red-400' : pendingAction === 'reboot-app' ? 'bg-[#ddb7ff]/20 text-[#ddb7ff]' : 'bg-orange-500/20 text-orange-400'">
+              <span class="material-symbols-outlined text-[32px]">
+                {{ pendingAction === 'shutdown' ? 'power_settings_new' : pendingAction === 'reboot-app' ? 'cached' : 'restart_alt' }}
+              </span>
+            </div>
+            
+            <h3 class="text-2xl font-bold text-white mt-1">
               {{ isUpdateReboot ? 'Aggiornamento completato' : 'Sei sicuro?' }}
             </h3>
-            <p class="text-white/50 text-sm">
+            
+            <p class="text-white/60 text-sm leading-relaxed px-2">
               <span v-if="pendingAction === 'shutdown'">
                 Stai per spegnere il Raspberry Pi. Dovrai riaccenderlo manualmente.
               </span>
-              <span v-else-if="isUpdateReboot">
-                Aggiornamento completato con successo. Per applicare le modifiche è necessario riavviare il sistema. Vuoi riavviare ora?
+              <span v-else-if="pendingAction === 'reboot-app'">
+                <span v-if="isUpdateReboot">
+                  Aggiornamento scaricato con successo. Per applicare le modifiche è necessario riavviare l'applicazione. Vuoi riavviare ora?
+                </span>
+                <span v-else>
+                  Stai per riavviare l'applicazione infotainment. L'interfaccia sarà temporaneamente non disponibile.
+                </span>
               </span>
               <span v-else>
-                Stai per riavviare il sistema. L'interfaccia sarà temporaneamente non disponibile.
+                <span v-if="isUpdateReboot">
+                  Aggiornamento completato con successo. Per applicare le modifiche è necessario riavviare il sistema. Vuoi riavviare ora?
+                </span>
+                <span v-else>
+                  Stai per riavviare il sistema (Raspberry Pi). L'interfaccia sarà temporaneamente non disponibile.
+                </span>
               </span>
             </p>
           </div>
-          <div class="flex gap-3">
+          
+          <div class="flex gap-4">
             <button @click="closeConfirmModal"
-              class="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-semibold transition-colors">
+              class="flex-1 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white/80 font-medium active:scale-95 transition-all">
               Annulla
             </button>
             <button @click="executePendingAction"
-              class="flex-1 py-3 rounded-xl font-bold transition-colors"
-              :class="pendingAction === 'shutdown' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white'">
-              Conferma
+              class="flex-1 py-3.5 rounded-2xl font-bold active:scale-95 transition-all text-white"
+              :class="pendingAction === 'shutdown' ? 'bg-red-500 hover:bg-red-600' : pendingAction === 'reboot-app' ? 'bg-[#ddb7ff] text-[#490080]' : 'bg-orange-500 hover:bg-orange-600'">
+              {{ isUpdateReboot ? 'Riavvia Ora' : 'Conferma' }}
             </button>
           </div>
         </div>
@@ -415,14 +466,21 @@
     <Transition name="modal-fade">
       <div v-if="showRebootingModal" class="fixed inset-0 z-[10000] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-xl"></div>
-        <div class="relative bg-[#1c1c1e] border border-white/10 w-[450px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 items-center text-center">
-          <div class="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center animate-pulse">
-            <span class="material-symbols-outlined text-orange-400 text-4xl">restart_alt</span>
+        <div class="relative bg-[#1c1c1e] border border-white/10 w-[450px] rounded-[40px] p-8 shadow-2xl flex flex-col gap-6 items-center text-center animate-in zoom-in-95 duration-300">
+          <div class="w-20 h-20 rounded-full flex items-center justify-center animate-pulse"
+               :class="rebootType === 'reboot-app' ? 'bg-[#ddb7ff]/20 text-[#ddb7ff]' : 'bg-orange-500/20 text-orange-400'">
+            <span class="material-symbols-outlined text-4xl">
+              {{ rebootType === 'reboot-app' ? 'cached' : 'restart_alt' }}
+            </span>
           </div>
           <div>
-            <h3 class="text-2xl font-bold text-white mb-2">Aggiornamento completato</h3>
+            <h3 class="text-2xl font-bold text-white mb-2">
+              {{ rebootType === 'reboot-app' ? 'Riavvio Applicazione' : 'Riavvio del Sistema' }}
+            </h3>
             <p class="text-white/60">
-              Il codice è stato aggiornato ed il sistema si sta riavviando per applicare le modifiche.
+              {{ rebootType === 'reboot-app' 
+                ? 'L\'applicazione si sta riavviando per applicare le modifiche.' 
+                : 'Il sistema si sta riavviando per applicare le modifiche.' }}
             </p>
             <p class="text-white/40 text-sm mt-4">
               L'interfaccia si ricaricherà automaticamente tra pochi secondi.
@@ -538,13 +596,22 @@ const updateLog     = ref('')
 
 // Modal di conferma generico
 const showConfirmModal = ref(false)
-const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
+const pendingAction = ref<'reboot' | 'shutdown' | 'reboot-app' | null>(null)
+const rebootType = ref<'reboot' | 'shutdown' | 'reboot-app' | null>(null)
 const isUpdateReboot = ref(false)
 
 // Modal di aggiornamento (Manifesto)
 const showUpdateModal = ref(false)
 const updateManifest = ref({ restart_backend: false, restart_kiosk: false })
 const showRebootingModal = ref(false)
+
+// Step di aggiornamento
+const hasUpdated = ref(false)
+const updateSteps = ref([
+  { id: 'pull', label: 'Scaricamento codice da GitHub', status: 'idle', subtext: '' },
+  { id: 'install', label: 'Esecuzione script di installazione', status: 'idle', subtext: '' },
+  { id: 'complete', label: 'Riavvio e applicazione', status: 'idle', subtext: '' }
+])
 
 onMounted(async () => {
   try {
@@ -558,44 +625,94 @@ onMounted(async () => {
 
 const handleUpdate = async () => {
   isUpdating.value = true
-  updateLog.value = 'Scarico ultimi aggiornamenti da GitHub (git pull)...'
+  hasUpdated.value = true
+  updateLog.value = ''
+  
+  // Inizializza gli step in stato running/idle
+  updateSteps.value[0].status = 'running'
+  updateSteps.value[0].subtext = 'Connessione a GitHub e recupero aggiornamenti...'
+  updateSteps.value[1].status = 'idle'
+  updateSteps.value[1].subtext = ''
+  updateSteps.value[2].status = 'idle'
+  updateSteps.value[2].subtext = ''
+
   try {
     // Phase 1: Pull and check if there are changes
     const resPull = await fetch(`${API}/api/system/update/pull`, { method: 'POST' })
     const dataPull = await resPull.json()
     
     if (!dataPull.success) {
+      updateSteps.value[0].status = 'failed'
+      updateSteps.value[0].subtext = 'Scaricamento fallito.'
       updateLog.value = '✕ Errore nello scaricamento: ' + dataPull.message
       isUpdating.value = false
       return
     }
     
+    updateSteps.value[0].status = 'success'
+    updateSteps.value[0].subtext = 'Codice scaricato con successo.'
+    
     if (!dataPull.changed) {
-      updateLog.value = '✓ Codice già aggiornato. Nessuna installazione richiesta.'
+      updateSteps.value[1].status = 'skipped'
+      updateSteps.value[1].subtext = 'Nessuna modifica rilevata nel repository.'
+      updateSteps.value[2].status = 'success'
+      updateSteps.value[2].subtext = 'Il sistema è già aggiornato.'
+      updateLog.value = '✓ Codice già aggiornato. Nessun aggiornamento richiesto.'
       isUpdating.value = false
       return
     }
     
-    // Phase 2: Run install script since code changed
-    updateLog.value = '✓ Codice scaricato. Esecuzione dello script di installazione (questo potrebbe richiedere qualche minuto)...'
-    const resInstall = await fetch(`${API}/api/system/update/install`, { method: 'POST' })
-    const dataInstall = await resInstall.json()
-    
-    if (!dataInstall.success) {
-      updateLog.value = '✕ Errore nell\'installazione: ' + dataInstall.message
-      isUpdating.value = false
-      return
+    // Verifica se lo script di installazione è cambiato
+    if (dataPull.install_required) {
+      // Phase 2: Run install script
+      updateSteps.value[1].status = 'running'
+      updateSteps.value[1].subtext = 'Esecuzione dello script di installazione in corso...'
+      
+      const resInstall = await fetch(`${API}/api/system/update/install`, { method: 'POST' })
+      const dataInstall = await resInstall.json()
+      
+      if (!dataInstall.success) {
+        updateSteps.value[1].status = 'failed'
+        updateSteps.value[1].subtext = 'Installazione fallita.'
+        updateLog.value = '✕ Errore nell\'installazione: ' + dataInstall.message
+        isUpdating.value = false
+        return
+      }
+      
+      updateSteps.value[1].status = 'success'
+      updateSteps.value[1].subtext = 'Installazione completata con successo.'
+      
+      updateSteps.value[2].status = 'running'
+      updateSteps.value[2].subtext = 'Riavvio del sistema richiesto per completare.'
+      updateLog.value = '✓ Installazione completata. Riavvio richiesto.'
+      
+      // Open full system reboot confirmation modal
+      isUpdateReboot.value = true
+      pendingAction.value = 'reboot'
+      showConfirmModal.value = true
+    } else {
+      // Skip Phase 2
+      updateSteps.value[1].status = 'skipped'
+      updateSteps.value[1].subtext = 'Lo script di installazione non è cambiato.'
+      
+      updateSteps.value[2].status = 'running'
+      updateSteps.value[2].subtext = 'Riavvio dell\'applicazione richiesto per completare.'
+      updateLog.value = '✓ Aggiornamento scaricato. Riavvio dell\'applicazione richiesto.'
+      
+      // Open app-only restart confirmation modal
+      isUpdateReboot.value = true
+      pendingAction.value = 'reboot-app'
+      showConfirmModal.value = true
     }
     
-    updateLog.value = '✓ Installazione completata con successo. Riavvio richiesto.'
-    
-    // Open the confirmation reboot modal
-    isUpdateReboot.value = true
-    pendingAction.value = 'reboot'
-    showConfirmModal.value = true
-    
-  } catch (e) {
+  } catch (e: any) {
     updateLog.value = '✕ Errore di connessione al sistema durante l\'aggiornamento.'
+    for (const step of updateSteps.value) {
+      if (step.status === 'running') {
+        step.status = 'failed'
+        step.subtext = 'Errore di connessione.'
+      }
+    }
   } finally {
     isUpdating.value = false
   }
@@ -604,33 +721,46 @@ const handleUpdate = async () => {
 const applyUpdateRestarts = async () => {
   showUpdateModal.value = false
   isPowerBusy.value = true
+  rebootType.value = 'reboot-app'
   try {
     await fetch(`${API}/api/system/reboot-app`, { method: 'POST' })
   } catch (e) {}
 }
 
-const triggerAction = (action: 'reboot' | 'shutdown') => {
+const triggerAction = (action: 'reboot' | 'shutdown' | 'reboot-app') => {
   pendingAction.value = action
   showConfirmModal.value = true
 }
 
 const closeConfirmModal = () => {
   showConfirmModal.value = false
+  if (isUpdateReboot.value) {
+    updateSteps.value[2].status = 'idle'
+    updateSteps.value[2].subtext = 'Riavvio posticipato dall\'utente.'
+  }
   isUpdateReboot.value = false
 }
 
 const executePendingAction = async () => {
   const isReboot = pendingAction.value === 'reboot'
+  const isRebootApp = pendingAction.value === 'reboot-app'
+  
+  rebootType.value = pendingAction.value
   showConfirmModal.value = false
   isPowerBusy.value = true
   const wasUpdateReboot = isUpdateReboot.value
   isUpdateReboot.value = false // reset flag
   try {
-    const endpoint = pendingAction.value === 'shutdown'
-      ? `${API}/api/system/shutdown`
-      : `${API}/api/system/reboot`
+    let endpoint = ''
+    if (pendingAction.value === 'shutdown') {
+      endpoint = `${API}/api/system/shutdown`
+    } else if (pendingAction.value === 'reboot') {
+      endpoint = `${API}/api/system/reboot`
+    } else if (pendingAction.value === 'reboot-app') {
+      endpoint = `${API}/api/system/reboot-app`
+    }
     
-    if (isReboot) {
+    if (isReboot || isRebootApp) {
       showRebootingModal.value = true
     }
     
@@ -643,6 +773,7 @@ const executePendingAction = async () => {
 
 const handleRebootApp = async () => {
   isPowerBusy.value = true
+  rebootType.value = 'reboot-app'
   try {
     await fetch(`${API}/api/system/reboot-app`, { method: 'POST' })
   } finally {
