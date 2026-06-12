@@ -32,7 +32,7 @@
         >
           {{ muted ? 'volume_off' : 'volume_mute' }}
         </span>
-        <div class="relative w-32 h-1 bg-white/10 rounded-full">
+        <div class="relative w-64 h-2 bg-white/10 rounded-full">
           <!-- Parte Riempita -->
           <div 
             class="absolute top-0 left-0 h-full rounded-full pointer-events-none" 
