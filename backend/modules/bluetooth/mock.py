@@ -35,12 +35,22 @@ class MockBluetoothModule(BluetoothModuleInterface):
         return True
     
     def get_status(self) -> Dict[str, any]:
+        devices = []
+        for dev in self._state.available_devices:
+            is_connected = self._state.connected and dev["address"] == self._state.device_address
+            is_paired = dev["address"] == "AA:BB:CC:DD:EE:FF" or is_connected
+            devices.append({
+                "address": dev["address"],
+                "name": dev["name"],
+                "isConnected": is_connected,
+                "isPaired": is_paired
+            })
         return {
             "connected": self._state.connected,
             "device_name": self._state.device_name,
             "device_address": self._state.device_address,
             "battery_level": self._state.battery_level,
-            "available_devices": self._state.available_devices,
+            "available_devices": devices,
         }
     
     def get_connected_device(self) -> Optional[Dict[str, str]]:
@@ -51,9 +61,19 @@ class MockBluetoothModule(BluetoothModuleInterface):
             }
         return None
     
-    def scan_devices(self) -> List[Dict[str, str]]:
+    def scan_devices(self) -> List[Dict[str, Any]]:
         print("[MockBluetooth] Scanning devices...")
-        return self._state.available_devices
+        devices = []
+        for dev in self._state.available_devices:
+            is_connected = self._state.connected and dev["address"] == self._state.device_address
+            is_paired = dev["address"] == "AA:BB:CC:DD:EE:FF" or is_connected
+            devices.append({
+                "address": dev["address"],
+                "name": dev["name"],
+                "isConnected": is_connected,
+                "isPaired": is_paired
+            })
+        return devices
     
     def connect(self, address: str) -> bool:
         print(f"[MockBluetooth] Connecting to {address}")

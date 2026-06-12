@@ -35,8 +35,8 @@ export function useBluetooth() {
           isPaired: d.isPaired
         }))
         
-        pairedDevices.value = devices.filter((d: any) => d.isPaired)
-        availableDevices.value = devices.filter((d: any) => !d.isPaired)
+        pairedDevices.value = devices.filter((d: any) => d.isPaired || d.isConnected)
+        availableDevices.value = devices.filter((d: any) => !d.isPaired && !d.isConnected)
       }
     } catch (e) {
       console.error('BT Status error:', e)
@@ -61,8 +61,8 @@ export function useBluetooth() {
         isFavorite: d.address === localStorage.getItem('bt_favorite'),
         isPaired: d.isPaired
       }))
-      pairedDevices.value = devices.filter((d: any) => d.isPaired)
-      availableDevices.value = devices.filter((d: any) => !d.isPaired)
+      pairedDevices.value = devices.filter((d: any) => d.isPaired || d.isConnected)
+      availableDevices.value = devices.filter((d: any) => !d.isPaired && !d.isConnected)
     } catch (e) {
       console.error('Errore scan bluetooth:', e)
     } finally {
