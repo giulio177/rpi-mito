@@ -90,6 +90,8 @@ class MockBluetoothModule(BluetoothModuleInterface):
     def disconnect(self) -> bool:
         print("[MockBluetooth] Disconnecting")
         self._state.connected = False
+        self._state.device_address = None
+        self._state.device_name = None
         return True
     
     def unpair(self, address: str) -> bool:

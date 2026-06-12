@@ -242,7 +242,10 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     seen_addrs.add(d["address"])
                 for d in self._state.available_devices:
                     if d["address"] not in seen_addrs:
-                        updated_available.append(d)
+                        # Device is no longer connected, set isConnected to False
+                        d_copy = dict(d)
+                        d_copy["isConnected"] = False
+                        updated_available.append(d_copy)
                 self._state.available_devices = updated_available
                 
                 # Update media status cache

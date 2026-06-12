@@ -27,16 +27,34 @@ export function useBluetooth() {
         adapterName.value = data.device_name || 'MITO-fr'
         isPowered.value = data.connected || false
         
-        const devices = (data.available_devices || []).map((d: any) => ({
-          id: d.address,
-          name: d.name || d.address,
-          isConnected: d.isConnected,
-          isFavorite: d.address === localStorage.getItem('bt_favorite'),
-          isPaired: d.isPaired
-        }))
+        const rememberedAddrs = JSON.parse(localStorage.getItem('bt_remembered') || '[]') as string[]
+        let updatedRemembered = [...rememberedAddrs]
+        let changed = false
+
+        const devices = (data.available_devices || []).map((d: any) => {
+          const isConnected = d.isConnected === true
+          const isPaired = d.isPaired === true || rememberedAddrs.includes(d.address)
+          
+          if (isConnected && !updatedRemembered.includes(d.address)) {
+            updatedRemembered.push(d.address)
+            changed = true
+          }
+
+          return {
+            id: d.address,
+            name: d.name || d.address,
+            isConnected,
+            isFavorite: d.address === localStorage.getItem('bt_favorite'),
+            isPaired
+          }
+        })
+
+        if (changed) {
+          localStorage.setItem('bt_remembered', JSON.stringify(updatedRemembered))
+        }
         
-        pairedDevices.value = devices.filter((d: any) => d.isPaired || d.isConnected)
-        availableDevices.value = devices.filter((d: any) => !d.isPaired && !d.isConnected)
+        pairedDevices.value = devices.filter((d: any) => d.isPaired)
+        availableDevices.value = devices.filter((d: any) => !d.isPaired)
       }
     } catch (e) {
       console.error('BT Status error:', e)
@@ -59,15 +77,34 @@ export function useBluetooth() {
     isScanning.value = true
     try {
       const data = await api.getBluetoothDevices()
-      const devices = data.map((d: any) => ({
-        id: d.address,
-        name: d.name || d.address,
-        isConnected: d.isConnected,
-        isFavorite: d.address === localStorage.getItem('bt_favorite'),
-        isPaired: d.isPaired
-      }))
-      pairedDevices.value = devices.filter((d: any) => d.isPaired || d.isConnected)
-      availableDevices.value = devices.filter((d: any) => !d.isPaired && !d.isConnected)
+      const rememberedAddrs = JSON.parse(localStorage.getItem('bt_remembered') || '[]') as string[]
+      let updatedRemembered = [...rememberedAddrs]
+      let changed = false
+
+      const devices = data.map((d: any) => {
+        const isConnected = d.isConnected === true
+        const isPaired = d.isPaired === true || rememberedAddrs.includes(d.address)
+
+        if (isConnected && !updatedRemembered.includes(d.address)) {
+          updatedRemembered.push(d.address)
+          changed = true
+        }
+
+        return {
+          id: d.address,
+          name: d.name || d.address,
+          isConnected,
+          isFavorite: d.address === localStorage.getItem('bt_favorite'),
+          isPaired
+        }
+      })
+
+      if (changed) {
+        localStorage.setItem('bt_remembered', JSON.stringify(updatedRemembered))
+      }
+
+      pairedDevices.value = devices.filter((d: any) => d.isPaired)
+      availableDevices.value = devices.filter((d: any) => !d.isPaired)
     } catch (e) {
       console.error('Errore scan bluetooth:', e)
     } finally {
@@ -81,6 +118,7 @@ export function useBluetooth() {
 
     try {
       if (device.isConnected) {
+        device.isConnected = false
         await api.disconnectBluetooth()
       } else {
         await api.connectBluetooth(id)
@@ -94,6 +132,11 @@ export function useBluetooth() {
   const forgetDevice = async (id: string) => {
     try {
       await api.unpairBluetooth(id)
+      
+      const rememberedAddrs = JSON.parse(localStorage.getItem('bt_remembered') || '[]') as string[]
+      const updatedRemembered = rememberedAddrs.filter(addr => addr !== id)
+      localStorage.setItem('bt_remembered', JSON.stringify(updatedRemembered))
+
       if (localStorage.getItem('bt_favorite') === id) {
         localStorage.removeItem('bt_favorite')
       }
@@ -105,6 +148,8 @@ export function useBluetooth() {
 
   const disconnectDevice = async () => {
     try {
+      pairedDevices.value.forEach(d => { d.isConnected = false })
+      availableDevices.value.forEach(d => { d.isConnected = false })
       await api.disconnectBluetooth()
       await fetchStatus()
     } catch (e) {
