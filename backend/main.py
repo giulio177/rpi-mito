@@ -296,6 +296,19 @@ async def wifi_disconnect():
     return {"error": "WiFi module not available"}
 
 
+@app.post("/api/wifi/forget")
+async def wifi_forget(ssid: str):
+    wifi = HALFactory.get_module("wifi")
+    if wifi:
+        if hasattr(wifi, "forget"):
+            success = wifi.forget(ssid)
+            if inspect.isawaitable(success):
+                success = await success
+            return {"success": success}
+        return {"error": "WiFi module does not support forgetting profiles"}
+    return {"error": "WiFi module not available"}
+
+
 @app.get("/api/obd/status")
 async def obd_status():
     obd = HALFactory.get_module("obd")

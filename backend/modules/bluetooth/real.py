@@ -28,6 +28,17 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def _power_on_and_start_loop(self):
         await self._run_bluetoothctl("power on")
+        
+        # Re-trust remembered devices to ensure they are persisted in BlueZ config on reboot
+        try:
+            from core import persistence
+            remembered = persistence.get_remembered_bluetooth()
+            for addr in remembered:
+                print(f"[RealBluetooth] Re-trusting remembered device: {addr}")
+                await self._run_bluetoothctl(f"trust {addr}")
+        except Exception as pe:
+            print(f"[RealBluetooth] Error re-trusting on startup: {pe}")
+            
         self._loop_task = asyncio.create_task(self._monitor_bluetooth_loop())
 
     def shutdown(self) -> bool:
@@ -126,16 +137,23 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 # Auto-trust connected device so connection is saved/trusted
                 if any_connected and conn_address:
                     await self._run_bluetoothctl(f"trust {conn_address}")
+                    try:
+                        from core import persistence
+                        persistence.add_remembered_bluetooth(conn_address)
+                    except Exception as pe:
+                        print(f"[RealBluetooth] Error saving connected device to persistence: {pe}")
 
                 # 3. Get all paired devices
                 paired_output = await self._run_bluetoothctl("paired-devices")
                 paired_devices = []
+                paired_addrs = set()
                 
                 for line in paired_output.splitlines():
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
                         addr = parts[1].upper()
                         name = parts[2]
+                        paired_addrs.add(addr)
                         is_this_connected = (conn_address is not None and addr == conn_address)
                         paired_devices.append({
                             "id": addr,
@@ -144,6 +162,23 @@ class RealBluetoothModule(BluetoothModuleInterface):
                             "isConnected": is_this_connected,
                             "isPaired": True
                         })
+                
+                # Merge with remembered devices from local JSON storage
+                try:
+                    from core import persistence
+                    remembered = persistence.get_remembered_bluetooth()
+                    for addr in remembered:
+                        if addr not in paired_addrs:
+                            is_this_connected = (conn_address is not None and addr == conn_address)
+                            paired_devices.append({
+                                "id": addr,
+                                "address": addr,
+                                "name": addr, # fallback name
+                                "isConnected": is_this_connected,
+                                "isPaired": True
+                            })
+                except Exception as pe:
+                    print(f"[RealBluetooth] Error merging remembered devices: {pe}")
                 
                 # If connected device is not in paired_devices list
                 if any_connected and conn_address:
@@ -370,6 +405,11 @@ class RealBluetoothModule(BluetoothModuleInterface):
             stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
                 self._state.available_devices = [d for d in self._state.available_devices if d["address"] != address]
+                try:
+                    from core import persistence
+                    persistence.remove_remembered_bluetooth(address)
+                except Exception as pe:
+                    print(f"[RealBluetooth] Error removing device from persistence: {pe}")
                 return True
             else:
                 print(f"[RealBluetooth] Remove failed: {stderr.decode()} | {stdout.decode()}")

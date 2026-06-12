@@ -8,7 +8,10 @@ class MockBluetoothModule(BluetoothModuleInterface):
     
     def __init__(self):
         super().__init__()
-        self._paired_addresses = {"AA:BB:CC:DD:EE:FF"}
+        from core import persistence
+        self._paired_addresses = set(persistence.get_remembered_bluetooth())
+        if not self._paired_addresses:
+            self._paired_addresses.add("AA:BB:CC:DD:EE:FF")
         self._state = self._create_initial_state()
         self._shuffle = "off"
         self._repeat = "off"
@@ -79,10 +82,12 @@ class MockBluetoothModule(BluetoothModuleInterface):
         return devices
     
     def connect(self, address: str) -> bool:
+        from core import persistence
         print(f"[MockBluetooth] Connecting to {address}")
         self._state.connected = True
         self._state.device_address = address
         self._paired_addresses.add(address)
+        persistence.add_remembered_bluetooth(address)
         for dev in self._state.available_devices:
             if dev["address"] == address:
                 self._state.device_name = dev["name"]
@@ -97,9 +102,11 @@ class MockBluetoothModule(BluetoothModuleInterface):
         return True
     
     def unpair(self, address: str) -> bool:
+        from core import persistence
         print(f"[MockBluetooth] Unpairing {address}")
         if address in self._paired_addresses:
             self._paired_addresses.remove(address)
+        persistence.remove_remembered_bluetooth(address)
         if self._state.device_address == address:
             self._state.connected = False
             self._state.device_address = None

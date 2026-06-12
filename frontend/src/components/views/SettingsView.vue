@@ -339,6 +339,29 @@
                 <button @click.stop="openMenu(net.id)" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors">
                   <span class="material-symbols-outlined text-white/70">more_vert</span>
                 </button>
+
+                <!-- Context Dropdown -->
+                <div 
+                  v-if="activeMenuId === net.id" 
+                  class="absolute right-0 top-12 w-64 bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-1.5 flex flex-col gap-1 z-[60]"
+                >
+                  <button 
+                    v-if="net.isConnected"
+                    @click.stop="disconnectWifi(); activeMenuId = null"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-colors text-left text-sm text-orange-400 font-medium animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">wifi_off</span>
+                    <span>Disconnetti</span>
+                  </button>
+                  
+                  <button 
+                    @click.stop="forgetNetwork(net.ssid); activeMenuId = null"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/20 hover:text-red-300 transition-colors text-left text-sm text-red-400 font-medium animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                    <span>Dimentica rete</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -584,7 +607,8 @@ const {
   isScanning: isScanningWifi,
   scanNetworks: scanWifi,
   connectToWifi,
-  disconnectWifi
+  disconnectWifi,
+  forgetNetwork
 } = useWifi()
 
 const alertMessage = ref('')

@@ -115,6 +115,11 @@ class ApiClient {
     return response.data
   }
 
+  async forgetWiFi(ssid: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(`/api/wifi/forget?ssid=${ssid}`)
+    return response.data
+  }
+
   async playBluetooth(): Promise<ApiResponse<void>> {
     const response = await this.client.post<ApiResponse<void>>('/api/bluetooth/player/play')
     return response.data

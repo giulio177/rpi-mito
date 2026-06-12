@@ -23,6 +23,7 @@ class RealWiFiModule(WiFiModuleInterface):
     def initialize(self) -> bool:
         self.update_state(enabled=True, status="ready")
         self._loop_task = asyncio.create_task(self._monitor_wifi_loop())
+        asyncio.create_task(self._auto_connect_saved())
         return True
 
     def shutdown(self) -> bool:
@@ -32,12 +33,22 @@ class RealWiFiModule(WiFiModuleInterface):
         return True
 
     def get_status(self) -> Dict[str, Any]:
+        from core import persistence
+        saved = persistence.get_saved_wifi()
+        saved_list = []
+        for s_ssid in saved.keys():
+            saved_list.append({
+                "ssid": s_ssid,
+                "is_secure": True,
+                "isConnected": (self._state.ssid == s_ssid)
+            })
         return {
             "connected": self._state.connected,
             "ssid": self._state.ssid,
             "ip_address": self._state.ip_address,
             "signal_strength": self._state.signal_strength,
             "available_networks": self._state.available_networks,
+            "saved_networks": saved_list
         }
 
     def get_current_connection(self) -> Optional[Dict[str, str]]:
@@ -169,6 +180,12 @@ class RealWiFiModule(WiFiModuleInterface):
             return []
 
     async def connect(self, ssid: str, password: Optional[str] = None) -> bool:
+        from core import persistence
+        # If no password is provided, try loading it from local storage
+        if not password:
+            saved = persistence.get_saved_wifi()
+            password = saved.get(ssid)
+            
         try:
             # 1. Try to connect using exec (avoids shell injection/quoting issues!)
             cmd_args = ["nmcli", "device", "wifi", "connect", ssid]
@@ -186,6 +203,7 @@ class RealWiFiModule(WiFiModuleInterface):
                 self._state.connected = True
                 self._state.ssid = ssid
                 self._state.ip_address = self._get_local_ip()
+                persistence.save_wifi(ssid, password)
                 await self.scan_networks()
                 return True
             
@@ -209,6 +227,7 @@ class RealWiFiModule(WiFiModuleInterface):
                 self._state.connected = True
                 self._state.ssid = ssid
                 self._state.ip_address = self._get_local_ip()
+                persistence.save_wifi(ssid, password)
                 await self.scan_networks()
                 return True
                 
@@ -245,3 +264,40 @@ class RealWiFiModule(WiFiModuleInterface):
 
     def get_signal_strength(self) -> int:
         return self._state.signal_strength
+
+    async def forget(self, ssid: str) -> bool:
+        """Forget saved Wi-Fi network credentials and NetworkManager profile."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "nmcli", "connection", "delete", ssid,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc.communicate()
+        except Exception as e:
+            print(f"[RealWiFi] Error deleting nmcli profile for {ssid}: {e}")
+        
+        from core import persistence
+        persistence.delete_wifi(ssid)
+        return True
+
+    async def _auto_connect_saved(self):
+        """Auto-connect to any saved Wi-Fi network on startup."""
+        await asyncio.sleep(6)  # Allow system networks to settle
+        if self._state.connected:
+            return
+            
+        from core import persistence
+        saved = persistence.get_saved_wifi()
+        if not saved:
+            return
+            
+        print(f"[RealWiFi] Auto-connecting to saved networks: {list(saved.keys())}")
+        for ssid, password in saved.items():
+            if self._state.connected:
+                break
+            print(f"[RealWiFi] Auto-connecting to SSID: {ssid}...")
+            success = await self.connect(ssid, password)
+            if success:
+                print(f"[RealWiFi] Successfully auto-connected to: {ssid}")
+                break

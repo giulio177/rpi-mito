@@ -36,12 +36,22 @@ class MockWiFiModule(WiFiModuleInterface):
         return True
     
     def get_status(self) -> Dict[str, any]:
+        from core import persistence
+        saved = persistence.get_saved_wifi()
+        saved_list = []
+        for s_ssid in saved.keys():
+            saved_list.append({
+                "ssid": s_ssid,
+                "is_secure": True,
+                "isConnected": (self._state.ssid == s_ssid)
+            })
         return {
             "connected": self._state.connected,
             "ssid": self._state.ssid,
             "ip_address": self._state.ip_address,
             "signal_strength": self._state.signal_strength,
             "available_networks": self._state.available_networks,
+            "saved_networks": saved_list
         }
     
     def get_current_connection(self) -> Optional[Dict[str, str]]:
@@ -58,10 +68,12 @@ class MockWiFiModule(WiFiModuleInterface):
         return self._state.available_networks
     
     def connect(self, ssid: str, password: Optional[str] = None) -> bool:
+        from core import persistence
         print(f"[MockWiFi] Connecting to {ssid}")
         self._state.connected = True
         self._state.ssid = ssid
         self._state.ip_address = "192.168.1.100"
+        persistence.save_wifi(ssid, password)
         return True
     
     def disconnect(self) -> bool:
@@ -73,3 +85,8 @@ class MockWiFiModule(WiFiModuleInterface):
     
     def get_signal_strength(self) -> int:
         return self._state.signal_strength
+
+    def forget(self, ssid: str) -> bool:
+        from core import persistence
+        persistence.delete_wifi(ssid)
+        return True

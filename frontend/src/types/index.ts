@@ -48,6 +48,7 @@ export interface WiFiStatus {
   ip_address: string | null
   signal_strength: number
   available_networks: any[]
+  saved_networks?: any[]
 }
 
 export type WebSocketMessageType =
