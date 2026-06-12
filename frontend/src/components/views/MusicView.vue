@@ -22,10 +22,11 @@
       </div>
 
       <!-- Destra: Info e Controlli -->
-      <div class="flex-1 flex flex-col justify-between h-full pt-4 pb-4 min-w-0 z-10 relative">
+      <div class="flex-1 flex flex-col justify-between h-full pt-8 pb-4 min-w-0 z-10 relative">
         
         <!-- Titolo e Artista -->
-        <div class="pr-40">
+        <div class="pr-5
+        0">
           <h1 class="font-display-lg text-[56px] font-semibold leading-tight tracking-tight text-white mb-2 line-clamp-1">{{ currentTitle }}</h1>
           <p class="font-title-sm text-[28px] font-medium text-[#ddb7ff]">{{ currentArtist }}</p>
         </div>
