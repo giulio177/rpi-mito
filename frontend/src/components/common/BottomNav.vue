@@ -19,14 +19,30 @@
 
       <!-- Right Audio Controls -->
       <div class="flex items-center gap-4 bg-black/20 rounded-full px-4 py-2 border border-white/5">
-        <span @click="volume = Math.max(0, volume - 10)" class="material-symbols-outlined text-white/40 text-[20px] cursor-pointer hover:text-white transition-all duration-200 active:scale-75">volume_mute</span>
+        <span 
+          @mousedown="startMuteTimer"
+          @mouseup="clearMuteTimer"
+          @mouseleave="clearMuteTimer"
+          @touchstart.passive="startMuteTimer"
+          @touchend="clearMuteTimer"
+          @touchcancel="clearMuteTimer"
+          @click="handleVolumeDown"
+          class="material-symbols-outlined text-[20px] cursor-pointer transition-all duration-200 active:scale-75 select-none"
+          :class="muted ? 'text-red-400 hover:text-red-300 animate-pulse' : 'text-white/40 hover:text-white'"
+        >
+          {{ muted ? 'volume_off' : 'volume_mute' }}
+        </span>
         <div class="relative w-32 h-1 bg-white/10 rounded-full">
           <!-- Parte Riempita -->
-          <div class="absolute top-0 left-0 h-full bg-[#ddb7ff] rounded-full shadow-[0_0_10px_rgba(221,183,255,0.8)] pointer-events-none" :style="{ width: volume + '%' }"></div>
+          <div 
+            class="absolute top-0 left-0 h-full rounded-full pointer-events-none transition-all duration-100" 
+            :class="muted ? 'bg-white/20 shadow-none' : 'bg-[#ddb7ff] shadow-[0_0_10px_rgba(221,183,255,0.8)]'" 
+            :style="{ width: volumeModel + '%' }"
+          ></div>
           <!-- Input Range Invisibile Interattivo -->
-          <input type="range" min="0" max="100" v-model="volume" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+          <input type="range" min="0" max="100" v-model="volumeModel" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
         </div>
-        <span @click="volume = Math.min(100, volume + 10)" class="material-symbols-outlined text-[#ddb7ff] text-[20px] cursor-pointer hover:brightness-125 transition-all duration-200 active:scale-75">volume_up</span>
+        <span @click="handleVolumeUp" class="material-symbols-outlined text-[#ddb7ff] text-[20px] cursor-pointer hover:brightness-125 transition-all duration-200 active:scale-75 select-none">volume_up</span>
       </div>
 
     </div>
@@ -34,13 +50,56 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAudioStore } from '@/stores/audio'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
 const route = useRoute()
 
-const volume = ref(60)
+const audioStore = useAudioStore()
+const { volume, muted } = storeToRefs(audioStore)
+
+const volumeModel = computed({
+  get: () => volume.value,
+  set: (val) => {
+    audioStore.setVolume(Number(val))
+  }
+})
+
+// Mute long-press detection logic
+const longPressTimer = ref<any>(null)
+const wasLongPressed = ref(false)
+
+const startMuteTimer = () => {
+  wasLongPressed.value = false
+  longPressTimer.value = setTimeout(async () => {
+    wasLongPressed.value = true
+    await audioStore.setMuted(!muted.value)
+  }, 2000) // 2 seconds long press
+}
+
+const clearMuteTimer = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+const handleVolumeDown = async () => {
+  if (wasLongPressed.value) {
+    wasLongPressed.value = false
+    return
+  }
+  const newVol = Math.max(0, volume.value - 10)
+  await audioStore.setVolume(newVol)
+}
+
+const handleVolumeUp = async () => {
+  const newVol = Math.min(100, volume.value + 10)
+  await audioStore.setVolume(newVol)
+}
 
 const navItems = [
   { path: '/', icon: 'home' },

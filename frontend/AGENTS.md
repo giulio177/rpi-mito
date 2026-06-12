@@ -10,6 +10,7 @@ This directory houses the frontend application of the MITO Infotainment System, 
 - **Offline First:** All fonts, icons, and static assets must be bundled locally. No external web CDN loads are permitted.
 - **Input Methods:** Must support virtual keyboard inputs for touchscreens.
 - **State Management:** Pinia stores for sync with backend endpoints (`audio`, `bluetooth`, `wifi`).
+- **Volume Control:** The bottom navigation bar controls the global system volume and implements a 2-second long-press toggle on the volume down button for muting/unmuting.
 
 # Work Guidance
 - Use the VirtualKeyboard component for inputs to ensure usability on a Pi touchscreen.
