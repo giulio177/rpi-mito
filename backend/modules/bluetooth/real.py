@@ -9,6 +9,7 @@ class RealBluetoothModule(BluetoothModuleInterface):
         self._state = self._create_initial_state()
         self._loop_task: Optional[asyncio.Task] = None
         self._media_status = {"playback_status": "stopped", "current_track": None}
+        self._unpairing_addresses = set()
 
     def _create_initial_state(self) -> BluetoothState:
         return BluetoothState(
@@ -102,7 +103,10 @@ class RealBluetoothModule(BluetoothModuleInterface):
                         continue
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
-                        conn_address = parts[1].upper()
+                        addr = parts[1].upper()
+                        if addr in self._unpairing_addresses:
+                            continue
+                        conn_address = addr
                         conn_name = parts[2]
                         any_connected = True
                         break  # Infotainment currently focuses on the main connected device
@@ -128,14 +132,16 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 
                 if card_ready_in_pulse and not any_connected:
                     addr_underscore = card_match.group(1)
-                    conn_address = addr_underscore.replace("_", ":").upper()
-                    any_connected = True
-                    info_output = await self._run_bluetoothctl(f"info {conn_address}")
-                    name_match = re.search(r'Name:\s*(.*)', info_output)
-                    conn_name = name_match.group(1).strip() if name_match else "Connected Device"
+                    addr_upper = addr_underscore.replace("_", ":").upper()
+                    if addr_upper not in self._unpairing_addresses:
+                        conn_address = addr_upper
+                        any_connected = True
+                        info_output = await self._run_bluetoothctl(f"info {conn_address}")
+                        name_match = re.search(r'Name:\s*(.*)', info_output)
+                        conn_name = name_match.group(1).strip() if name_match else "Connected Device"
                 
                 # Auto-trust connected device so connection is saved/trusted
-                if any_connected and conn_address:
+                if any_connected and conn_address and conn_address not in self._unpairing_addresses:
                     await self._run_bluetoothctl(f"trust {conn_address}")
                     try:
                         from core import persistence
@@ -152,6 +158,8 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     parts = line.split(None, 2)
                     if len(parts) >= 3 and parts[0] == "Device":
                         addr = parts[1].upper()
+                        if addr in self._unpairing_addresses:
+                            continue
                         name = parts[2]
                         paired_addrs.add(addr)
                         is_this_connected = (conn_address is not None and addr == conn_address)
@@ -168,12 +176,15 @@ class RealBluetoothModule(BluetoothModuleInterface):
                     from core import persistence
                     remembered = persistence.get_remembered_bluetooth()
                     for addr in remembered:
-                        if addr not in paired_addrs:
-                            is_this_connected = (conn_address is not None and addr == conn_address)
+                        addr_upper = addr.upper()
+                        if addr_upper in self._unpairing_addresses:
+                            continue
+                        if addr_upper not in paired_addrs:
+                            is_this_connected = (conn_address is not None and addr_upper == conn_address)
                             paired_devices.append({
-                                "id": addr,
-                                "address": addr,
-                                "name": addr, # fallback name
+                                "id": addr_upper,
+                                "address": addr_upper,
+                                "name": addr_upper, # fallback name
                                 "isConnected": is_this_connected,
                                 "isPaired": True
                             })
@@ -323,6 +334,8 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 parts = line.split(None, 2)
                 if len(parts) >= 3 and parts[0] == "Device":
                     addr = parts[1].upper()
+                    if addr in self._unpairing_addresses:
+                        continue
                     name = parts[2]
                     
                     is_this_connected = (self._state.device_address is not None and addr == self._state.device_address.upper())
@@ -392,8 +405,27 @@ class RealBluetoothModule(BluetoothModuleInterface):
             return await self.toggle_connection(self._state.device_address, False)
         return True
 
+    async def _remove_from_unpairing_after_delay(self, address: str):
+        await asyncio.sleep(5.0)
+        self._unpairing_addresses.discard(address)
+
     async def unpair(self, address: str) -> bool:
         address = address.upper()
+        self._unpairing_addresses.add(address)
+        
+        # Disconnect if connected
+        is_connected_now = (self._state.device_address and self._state.device_address.upper() == address)
+        if is_connected_now:
+            try:
+                await self.toggle_connection(address, False)
+            except Exception as de:
+                print(f"[RealBluetooth] Exception disconnecting before unpairing: {de}")
+                
+            # Clear state connection fields
+            self._state.connected = False
+            self._state.device_address = None
+            self._state.device_name = None
+            
         # Always remove from state and persistence first to ensure it's forgotten
         self._state.available_devices = [d for d in self._state.available_devices if d["address"] != address]
         try:
@@ -403,8 +435,6 @@ class RealBluetoothModule(BluetoothModuleInterface):
             print(f"[RealBluetooth] Error removing device from persistence: {pe}")
 
         try:
-            if self._state.device_address and self._state.device_address.upper() == address:
-                await self.disconnect()
             proc = await asyncio.create_subprocess_exec(
                 "bluetoothctl", "remove", address,
                 stdout=asyncio.subprocess.PIPE,
@@ -413,9 +443,13 @@ class RealBluetoothModule(BluetoothModuleInterface):
             stdout, stderr = await proc.communicate()
             if proc.returncode != 0:
                 print(f"[RealBluetooth] bluetoothctl remove failed or device not paired in BlueZ: {stderr.decode()} | {stdout.decode()}")
+            
+            # Start timer to clear from unpairing set
+            asyncio.create_task(self._remove_from_unpairing_after_delay(address))
             return True
         except Exception as e:
             print(f"[RealBluetooth] Exception unpairing device: {e}")
+            asyncio.create_task(self._remove_from_unpairing_after_delay(address))
             return True
 
     async def _disable_discoverable(self):

@@ -15,6 +15,7 @@ const isScanning = ref(false)
 const adapterName = ref('MITO-fr')
 const isPowered = ref(false)
 const isDiscoverable = ref(false)
+const ignoredDevices = ref<string[]>([])
 
 export function useBluetooth() {
   const connectedDevice = computed(() => pairedDevices.value.find(d => d.isConnected))
@@ -32,8 +33,9 @@ export function useBluetooth() {
         let changed = false
 
         const devices = (data.available_devices || []).map((d: any) => {
-          const isConnected = d.isConnected === true
-          const isPaired = d.isPaired === true || rememberedAddrs.includes(d.address)
+          const isIgnored = ignoredDevices.value.includes(d.address)
+          const isConnected = isIgnored ? false : (d.isConnected === true)
+          const isPaired = isIgnored ? false : (d.isPaired === true || rememberedAddrs.includes(d.address))
           
           if (isConnected && !updatedRemembered.includes(d.address)) {
             updatedRemembered.push(d.address)
@@ -82,8 +84,9 @@ export function useBluetooth() {
       let changed = false
 
       const devices = data.map((d: any) => {
-        const isConnected = d.isConnected === true
-        const isPaired = d.isPaired === true || rememberedAddrs.includes(d.address)
+        const isIgnored = ignoredDevices.value.includes(d.address)
+        const isConnected = isIgnored ? false : (d.isConnected === true)
+        const isPaired = isIgnored ? false : (d.isPaired === true || rememberedAddrs.includes(d.address))
 
         if (isConnected && !updatedRemembered.includes(d.address)) {
           updatedRemembered.push(d.address)
@@ -131,6 +134,9 @@ export function useBluetooth() {
 
   const forgetDevice = async (id: string) => {
     try {
+      if (!ignoredDevices.value.includes(id)) {
+        ignoredDevices.value.push(id)
+      }
       await api.unpairBluetooth(id)
       
       const rememberedAddrs = JSON.parse(localStorage.getItem('bt_remembered') || '[]') as string[]
@@ -141,8 +147,14 @@ export function useBluetooth() {
         localStorage.removeItem('bt_favorite')
       }
       await fetchStatus()
+      
+      // Clear from ignored list after backend/subprocesses settle down
+      setTimeout(() => {
+        ignoredDevices.value = ignoredDevices.value.filter(addr => addr !== id)
+      }, 5000)
     } catch (e) {
       console.error('Errore forget device:', e)
+      ignoredDevices.value = ignoredDevices.value.filter(addr => addr !== id)
     }
   }
 
