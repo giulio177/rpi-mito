@@ -1,8 +1,8 @@
 <template>
-  <div class="w-full h-full flex pt-6 px-8 gap-8 text-white min-h-0">
+  <div class="w-full h-full flex pt-4 px-2 gap-8 text-white min-h-0">
     
     <!-- Sidebar -->
-    <div class="w-64 flex flex-col gap-2 pb-32 shrink-0">
+    <div class="w-50 flex flex-col gap-2 pb-32 shrink-0">
       <h1 class="text-3xl font-semibold mb-6 px-4">Impostazioni</h1>
       
       <button 
@@ -40,10 +40,10 @@
       <div v-if="activeMenuId !== null" @click.stop="activeMenuId = null" class="fixed inset-0 z-40 bg-transparent"></div>
 
       <!-- GENERAL -->
-      <div v-if="activeTab === 'general'" class="flex-1 flex flex-col gap-6 overflow-y-auto pb-40 pr-4 pt-2">
+      <div v-if="activeTab === 'general'" class="flex-1 flex flex-col gap-2 overflow-y-auto pb-40 pr-1 pt-2">
 
         <!-- Info & Aggiornamento -->
-        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl flex flex-col gap-5">
+        <div class="bg-white/5 border border-white/10 p-5 rounded-3xl flex flex-col gap-5">
           <div>
             <h2 class="text-2xl font-semibold mb-1">Sistema</h2>
             <p class="text-white/40 text-sm">Informazioni sulla versione e aggiornamenti OTA</p>
@@ -114,7 +114,7 @@
         </div>
 
         <!-- Alimentazione (Danger zone) -->
-        <div class="bg-red-500/5 border border-red-500/20 p-6 rounded-3xl flex flex-col gap-4">
+        <div class="bg-red-500/5 border border-red-500/20 p-5 rounded-3xl flex flex-col gap-4">
           <div>
             <h2 class="text-2xl font-semibold mb-1">Alimentazione</h2>
             <p class="text-white/40 text-sm">Operazioni di riavvio e spegnimento del sistema</p>
@@ -168,7 +168,7 @@
       <!-- BLUETOOTH -->
       <div v-else-if="activeTab === 'bluetooth'" class="flex-1 flex flex-col min-h-0 relative">
         <!-- Header Fisso -->
-        <div class="flex items-center justify-between mb-6 shrink-0 pt-2">
+        <div class="flex items-center justify-between mb-0 shrink-0 pt-2">
           <h2 class="text-3xl font-semibold">Bluetooth</h2>
           <div class="flex items-center gap-3">
             <span class="text-sm font-medium text-white/50">{{ isDiscoverable ? 'Visibile' : 'Nascosto' }}</span>
@@ -186,14 +186,14 @@
 
         <!-- Area Scrollabile Unica -->
         <div 
-          class="flex-1 overflow-y-auto pb-40 pr-4 custom-scrollbar flex flex-col gap-6"
+          class="flex-1 overflow-y-auto pb-40 pr-4 custom-scrollbar flex flex-col gap-3"
           style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 100%); mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 100%);"
         >
           <!-- Spacer inziale per via del mask -->
           <div class="h-2 shrink-0"></div>
 
           <!-- Discoverable Row -->
-          <div @click="renameRaspberry" class="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl shrink-0 cursor-pointer hover:bg-white/10 transition-colors">
+          <div @click="renameRaspberry" class="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-2xl shrink-0 cursor-pointer hover:bg-white/10 transition-colors">
             <div class="flex flex-col">
               <span class="text-lg font-medium">Visibile come "{{ raspberryName }}"</span>
               <span class="text-sm text-white/50">Dispositivi vicini possono rilevare questo sistema.</span>
@@ -261,7 +261,7 @@
       <!-- WI-FI -->
       <div v-else-if="activeTab === 'wifi'" class="flex-1 flex flex-col min-h-0 relative">
         <!-- Header Fisso -->
-        <div class="flex items-center justify-between mb-6 shrink-0 pt-2">
+        <div class="flex items-center justify-between mb-0 shrink-0 pt-0">
           <h2 class="text-3xl font-semibold">Wi-Fi</h2>
           <div class="w-14 h-8 rounded-full bg-[#ddb7ff] p-1 cursor-pointer flex justify-end">
             <div class="w-6 h-6 rounded-full bg-white shadow-md"></div>
@@ -270,7 +270,7 @@
 
         <!-- Area Scrollabile Unica -->
         <div 
-          class="flex-1 overflow-y-auto pb-40 pr-4 custom-scrollbar flex flex-col gap-6"
+          class="flex-1 overflow-y-auto pb-40 pr-4 custom-scrollbar flex flex-col gap-3"
           style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 100%); mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 100%);"
         >
           <!-- Spacer inziale per via del mask -->
