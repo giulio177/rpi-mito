@@ -230,6 +230,9 @@ sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" DBUS_SESSION_BUS_ADDR
 echo ">>> Ripristino proprietario cartella di progetto..."
 chown -R "$USER_NAME:$USER_NAME" "$PROJECT_DIR"
 
+# Assicura che esista la cartella Downloads per OBEX (altrimenti obexd restituisce "Not Acceptable")
+sudo -u "$USER_NAME" mkdir -p "$USER_HOME/Downloads"
+
 # --- 5.1 Pulizia cache Python (evita errori "bad magic number" da file .pyc del Mac) ---
 echo ">>> Pulizia cache Python..."
 find "$PROJECT_DIR" -name '*.pyc' -delete
