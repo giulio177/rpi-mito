@@ -340,15 +340,23 @@
                   :class="pendingAction === 'shutdown' ? 'text-red-400' : 'text-orange-400'">
               {{ pendingAction === 'shutdown' ? 'power_settings_new' : 'restart_alt' }}
             </span>
-            <h3 class="text-xl font-bold">Sei sicuro?</h3>
+            <h3 class="text-xl font-bold">
+              {{ isUpdateReboot ? 'Aggiornamento completato' : 'Sei sicuro?' }}
+            </h3>
             <p class="text-white/50 text-sm">
-              {{ pendingAction === 'shutdown'
-                ? 'Stai per spegnere il Raspberry Pi. Dovrai riaccenderlo manualmente.'
-                : "Stai per riavviare il sistema. L'interfaccia sarà temporaneamente non disponibile." }}
+              <span v-if="pendingAction === 'shutdown'">
+                Stai per spegnere il Raspberry Pi. Dovrai riaccenderlo manualmente.
+              </span>
+              <span v-else-if="isUpdateReboot">
+                Aggiornamento completato con successo. Per applicare le modifiche è necessario riavviare il sistema. Vuoi riavviare ora?
+              </span>
+              <span v-else>
+                Stai per riavviare il sistema. L'interfaccia sarà temporaneamente non disponibile.
+              </span>
             </p>
           </div>
           <div class="flex gap-3">
-            <button @click="showConfirmModal = false"
+            <button @click="closeConfirmModal"
               class="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-semibold transition-colors">
               Annulla
             </button>
@@ -531,6 +539,7 @@ const updateLog     = ref('')
 // Modal di conferma generico
 const showConfirmModal = ref(false)
 const pendingAction = ref<'reboot' | 'shutdown' | null>(null)
+const isUpdateReboot = ref(false)
 
 // Modal di aggiornamento (Manifesto)
 const showUpdateModal = ref(false)
@@ -549,25 +558,44 @@ onMounted(async () => {
 
 const handleUpdate = async () => {
   isUpdating.value = true
-  updateLog.value = 'Ricerca aggiornamenti in corso...'
+  updateLog.value = 'Scarico ultimi aggiornamenti da GitHub (git pull)...'
   try {
-    const res = await fetch(`${API}/api/system/update`, { method: 'POST' })
-    const data = await res.json()
-    if (data.success) {
-      updateLog.value = '✓ Aggiornamento completato con successo.'
-      if (data.rebooting) {
-        showRebootingModal.value = true
-      } else if (data.needs_restart && (data.needs_restart.restart_backend || data.needs_restart.restart_kiosk)) {
-        updateManifest.value = data.needs_restart
-        showUpdateModal.value = true
-      } else {
-        updateLog.value += '\nSistema già aggiornato.'
-      }
-    } else {
-      updateLog.value = '✕ Errore: ' + data.message
+    // Phase 1: Pull and check if there are changes
+    const resPull = await fetch(`${API}/api/system/update/pull`, { method: 'POST' })
+    const dataPull = await resPull.json()
+    
+    if (!dataPull.success) {
+      updateLog.value = '✕ Errore nello scaricamento: ' + dataPull.message
+      isUpdating.value = false
+      return
     }
+    
+    if (!dataPull.changed) {
+      updateLog.value = '✓ Codice già aggiornato. Nessuna installazione richiesta.'
+      isUpdating.value = false
+      return
+    }
+    
+    // Phase 2: Run install script since code changed
+    updateLog.value = '✓ Codice scaricato. Esecuzione dello script di installazione (questo potrebbe richiedere qualche minuto)...'
+    const resInstall = await fetch(`${API}/api/system/update/install`, { method: 'POST' })
+    const dataInstall = await resInstall.json()
+    
+    if (!dataInstall.success) {
+      updateLog.value = '✕ Errore nell\'installazione: ' + dataInstall.message
+      isUpdating.value = false
+      return
+    }
+    
+    updateLog.value = '✓ Installazione completata con successo. Riavvio richiesto.'
+    
+    // Open the confirmation reboot modal
+    isUpdateReboot.value = true
+    pendingAction.value = 'reboot'
+    showConfirmModal.value = true
+    
   } catch (e) {
-    updateLog.value = '✕ Errore di connessione al sistema.'
+    updateLog.value = '✕ Errore di connessione al sistema durante l\'aggiornamento.'
   } finally {
     isUpdating.value = false
   }
@@ -586,10 +614,17 @@ const triggerAction = (action: 'reboot' | 'shutdown') => {
   showConfirmModal.value = true
 }
 
+const closeConfirmModal = () => {
+  showConfirmModal.value = false
+  isUpdateReboot.value = false
+}
+
 const executePendingAction = async () => {
   const isReboot = pendingAction.value === 'reboot'
   showConfirmModal.value = false
   isPowerBusy.value = true
+  const wasUpdateReboot = isUpdateReboot.value
+  isUpdateReboot.value = false // reset flag
   try {
     const endpoint = pendingAction.value === 'shutdown'
       ? `${API}/api/system/shutdown`

@@ -19,9 +19,20 @@ class MockSystemModule:
     async def get_git_info(self) -> Dict[str, Any]:
         return {"commit": "mock-abc123", "branch": "main"}
 
-    async def update_app(self) -> Dict[str, Any]:
-        logger.info("[MockSystem] update_app called (no-op in dev)")
-        return {"success": True, "message": "Already up to date. (mock)"}
+    async def pull_code(self) -> Dict[str, Any]:
+        logger.info("[MockSystem] pull_code called")
+        return {
+            "success": True,
+            "changed": True,
+            "message": "Codice mock scaricato con successo. Installazione richiesta. (mock)"
+        }
+
+    async def run_install(self) -> Dict[str, Any]:
+        logger.info("[MockSystem] run_install called")
+        return {
+            "success": True,
+            "message": "Installazione mock completata con successo. (mock)"
+        }
 
     async def reboot_app(self) -> Dict[str, Any]:
         logger.info("[MockSystem] reboot_app called (no-op in dev)")

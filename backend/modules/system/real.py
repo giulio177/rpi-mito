@@ -58,17 +58,45 @@ class RealSystemModule:
             logger.error(f"[System] git info error: {e}")
             return {"commit": "unknown", "branch": "unknown"}
 
-    async def update_app(self) -> Dict[str, Any]:
-        """Run the full OTA update: git pull, chmod, run install script, then reboot."""
+    async def pull_code(self) -> Dict[str, Any]:
+        """Perform a git pull (fetch & reset hard) and return if changes were found."""
         try:
-            # 1. Pull latest code from git
-            logger.info("[System] Fetching and resetting to origin/main...")
-            git_ok, git_out, git_err = await _run("git fetch origin main && git reset --hard origin/main")
-            if not git_ok:
-                logger.error(f"[System] Git pull failed: {git_err}")
-                return {"success": False, "message": f"Errore Git: {git_err}"}
+            logger.info("[System] Fetching from git origin/main...")
+            ok_fetch, _, fetch_err = await _run("git fetch origin main")
+            if not ok_fetch:
+                logger.error(f"[System] Git fetch failed: {fetch_err}")
+                return {"success": False, "message": f"Errore Git fetch: {fetch_err}"}
 
-            # 2. Chmod +x on installer
+            ok_local, local_hash, _ = await _run("git rev-parse HEAD")
+            ok_remote, remote_hash, _ = await _run("git rev-parse origin/main")
+            
+            if ok_local and ok_remote and local_hash.strip() == remote_hash.strip():
+                logger.info("[System] Git repository is already up to date.")
+                return {
+                    "success": True,
+                    "changed": False,
+                    "message": "Il codice del sistema è già aggiornato all'ultima versione."
+                }
+            
+            # Reset hard to origin/main to pull the updates
+            logger.info("[System] Resetting repository to origin/main...")
+            ok_reset, reset_out, reset_err = await _run("git reset --hard origin/main")
+            if not ok_reset:
+                logger.error(f"[System] Git reset hard failed: {reset_err}")
+                return {"success": False, "message": f"Errore Git reset: {reset_err}"}
+
+            return {
+                "success": True,
+                "changed": True,
+                "message": "Codice aggiornato scaricato con successo. Installazione richiesta."
+            }
+        except Exception as e:
+            logger.error(f"[System] pull_code error: {e}")
+            return {"success": False, "message": str(e)}
+
+    async def run_install(self) -> Dict[str, Any]:
+        """Make the installer script executable and run it."""
+        try:
             INSTALL_SCRIPT = os.path.join(PROJECT_DIR, "install_rpi-mito.sh")
             logger.info(f"[System] Setting execution permission on {INSTALL_SCRIPT}...")
             chmod_ok, _, chmod_err = await _run(f"chmod +x {INSTALL_SCRIPT}")
@@ -76,7 +104,6 @@ class RealSystemModule:
                 logger.error(f"[System] Chmod failed: {chmod_err}")
                 return {"success": False, "message": f"Errore Chmod: {chmod_err}"}
 
-            # 3. Execute installer script
             logger.info("[System] Running installer script (this might take a few minutes)...")
             proc = await asyncio.create_subprocess_shell(
                 f"sudo {INSTALL_SCRIPT}",
@@ -97,19 +124,12 @@ class RealSystemModule:
                 logger.error(f"[System] Installation script failed: {output}")
                 return {"success": False, "message": f"Errore Installazione:\n{output}"}
 
-            logger.info("[System] Installation complete. Scheduling reboot...")
-            
-            # 4. Schedule full reboot after 2 seconds to allow sending response
-            asyncio.create_task(self._reboot_after_delay(2.0))
-            
             return {
                 "success": True,
-                "message": "Aggiornamento completato con successo. Il sistema si sta riavviando...",
-                "rebooting": True
+                "message": "Installazione completata con successo. Riavvio richiesto."
             }
-
         except Exception as e:
-            logger.error(f"[System] update_app error: {e}")
+            logger.error(f"[System] run_install error: {e}")
             return {"success": False, "message": str(e)}
 
     async def _reboot_after_delay(self, delay: float):

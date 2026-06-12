@@ -285,11 +285,19 @@ async def system_version():
     return {"version": "unknown"}
 
 
-@app.post("/api/system/update")
-async def system_update():
+@app.post("/api/system/update/pull")
+async def system_update_pull():
     system = HALFactory.get_module("system")
     if system:
-        return await system.update_app()
+        return await system.pull_code()
+    return {"error": "System module not available"}
+
+
+@app.post("/api/system/update/install")
+async def system_update_install():
+    system = HALFactory.get_module("system")
+    if system:
+        return await system.run_install()
     return {"error": "System module not available"}
 
 
