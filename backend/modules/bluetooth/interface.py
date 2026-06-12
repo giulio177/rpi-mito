@@ -64,3 +64,11 @@ class BluetoothModuleInterface(BaseModule):
     def player_previous(self) -> bool:
         """Go to previous track on connected device"""
         return False
+
+    def player_shuffle(self, mode: str) -> bool:
+        """Set shuffle mode on connected device"""
+        return False
+
+    def player_repeat(self, mode: str) -> bool:
+        """Set repeat mode on connected device"""
+        return False

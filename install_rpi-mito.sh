@@ -128,7 +128,8 @@ if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/m
 sed -i '/Class =/d' /etc/bluetooth/main.conf
 sed -i '/DiscoverableTimeout =/d' /etc/bluetooth/main.conf
 sed -i '/Name =/d' /etc/bluetooth/main.conf
-sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 120\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nName = MITO-fr' /etc/bluetooth/main.conf
+sed -i '/ControllerVersion =/d' /etc/bluetooth/main.conf
+sed -i '/^\[General\]/a Class = 0x240404\nDiscoverableTimeout = 120\nPairableTimeout = 0\nJustWorksRepairing = always\nAutoEnable = true\nControllerMode = bredr\nControllerVersion = 1.6\nName = MITO-fr' /etc/bluetooth/main.conf
 
 
 
@@ -212,6 +213,11 @@ usermod -aG audio,bluetooth pulse || true
 # Abilita seatd per i permessi del compositor Wayland
 systemctl enable --now seatd || true
 gpasswd -a "$USER_NAME" seat || true
+
+# Attivazione OBEX per il trasferimento copertine
+loginctl enable-linger "$USER_NAME" || true
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_UID/bus" systemctl --user enable obex || true
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_UID" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_UID/bus" systemctl --user start obex || true
 
 # --- 5.0 Ripristino Proprietario Progetto ---
 echo ">>> Ripristino proprietario cartella di progetto..."

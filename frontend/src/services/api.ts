@@ -135,6 +135,20 @@ class ApiClient {
     return response.data
   }
 
+  async setBluetoothShuffle(mode: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(
+      `/api/bluetooth/player/shuffle?mode=${mode}`
+    )
+    return response.data
+  }
+
+  async setBluetoothRepeat(mode: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(
+      `/api/bluetooth/player/repeat?mode=${mode}`
+    )
+    return response.data
+  }
+
   async setDiscoverable(enabled: boolean): Promise<ApiResponse<void>> {
     const response = await this.client.post<ApiResponse<void>>(
       `/api/bluetooth/discoverable?enabled=${enabled}`

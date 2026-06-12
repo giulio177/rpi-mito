@@ -424,12 +424,18 @@ class RealBluetoothModule(BluetoothModuleInterface):
         return {"playback_status": "stopped", "current_track": None}
 
     def _parse_dbus_properties(self, output: str) -> Dict[str, Any]:
+        import base64
+        import os
+
         status = "stopped"
         title = "Unknown Track"
         artist = "Unknown Artist"
         album = "Unknown Album"
         duration = 0
         position = 0
+        shuffle = "off"
+        repeat = "off"
+        cover_art_base64 = None
         
         status_match = re.search(r'string "Status"\s*\n\s*variant\s*string "([^"]+)"', output)
         if status_match:
@@ -438,6 +444,14 @@ class RealBluetoothModule(BluetoothModuleInterface):
         position_match = re.search(r'string "Position"\s*\n\s*variant\s*uint32 (\d+)', output)
         if position_match:
             position = int(position_match.group(1)) // 1000  # convert ms to seconds
+
+        shuffle_match = re.search(r'string "Shuffle"\s*\n\s*variant\s*string "([^"]+)"', output)
+        if shuffle_match:
+            shuffle = shuffle_match.group(1).lower()
+
+        repeat_match = re.search(r'string "Repeat"\s*\n\s*variant\s*string "([^"]+)"', output)
+        if repeat_match:
+            repeat = repeat_match.group(1).lower()
             
         # Extract Track array using robust bracket matching
         track_block = ""
@@ -474,6 +488,27 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 duration_match = re.search(r'string "Duration"\s*\n\s*variant\s*uint64 (\d+)', track_block)
             if duration_match:
                 duration = int(duration_match.group(1)) // 1000  # convert ms to seconds
+
+            cover_art_match = re.search(r'string "CoverArt"\s*\n\s*variant\s*string "([^"]*)"', track_block)
+            if cover_art_match:
+                cover_art_val = cover_art_match.group(1)
+                if cover_art_val:
+                    possible_paths = [
+                        cover_art_val,
+                        os.path.join("/var/cache/obex", os.path.basename(cover_art_val)),
+                        os.path.expanduser(os.path.join("~/.cache/obexd", os.path.basename(cover_art_val))),
+                        os.path.join("/tmp", os.path.basename(cover_art_val))
+                    ]
+                    for p in possible_paths:
+                        if os.path.exists(p) and os.path.isfile(p):
+                            try:
+                                with open(p, "rb") as image_file:
+                                    encoded = base64.b64encode(image_file.read()).decode('utf-8')
+                                    mime = "image/png" if p.lower().endswith(".png") else "image/jpeg"
+                                    cover_art_base64 = f"data:{mime};base64,{encoded}"
+                                    break
+                            except Exception as img_err:
+                                print(f"[RealBluetooth] Error reading cover art from {p}: {img_err}")
                 
         current_track = None
         if title and title != "Unknown Track":
@@ -483,10 +518,13 @@ class RealBluetoothModule(BluetoothModuleInterface):
                 "album": album,
                 "duration": duration,
                 "position": position,
+                "cover_art": cover_art_base64
             }
             
         return {
             "playback_status": status,
+            "shuffle": shuffle,
+            "repeat": repeat,
             "current_track": current_track
         }
 
@@ -501,6 +539,35 @@ class RealBluetoothModule(BluetoothModuleInterface):
 
     async def player_previous(self) -> bool:
         return await self._send_player_cmd("Previous")
+
+    async def player_shuffle(self, mode: str) -> bool:
+        # mode can be: "off", "alltracks", "group"
+        return await self._set_player_property("Shuffle", mode)
+
+    async def player_repeat(self, mode: str) -> bool:
+        # mode can be: "off", "singletrack", "alltracks", "group"
+        return await self._set_player_property("Repeat", mode)
+
+    async def _set_player_property(self, property_name: str, value: str) -> bool:
+        if not self._state.connected or not self._state.device_address:
+            return False
+        addr_underscore = self._state.device_address.replace(":", "_")
+        for p in ["player0", "player1", "player2", "player3"]:
+            player_path = f"/org/bluez/hci0/dev_{addr_underscore}/{p}"
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "dbus-send", "--system", "--print-reply", "--dest=org.bluez",
+                    player_path, "org.freedesktop.DBus.Properties.Set",
+                    "string:org.bluez.MediaPlayer1", f"string:{property_name}", f"variant:string:{value}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await proc.communicate()
+                if proc.returncode == 0:
+                    return True
+            except Exception as e:
+                print(f"[RealBluetooth] Error setting property {property_name} to {value} on {p}: {e}")
+        return False
 
     async def _send_player_cmd(self, action: str) -> bool:
         if not self._state.connected or not self._state.device_address:

@@ -10,6 +10,8 @@ class MockBluetoothModule(BluetoothModuleInterface):
         super().__init__()
         self._paired_addresses = {"AA:BB:CC:DD:EE:FF"}
         self._state = self._create_initial_state()
+        self._shuffle = "off"
+        self._repeat = "off"
     
     def _create_initial_state(self) -> BluetoothState:
         return BluetoothState(
@@ -106,15 +108,19 @@ class MockBluetoothModule(BluetoothModuleInterface):
     
     def get_battery_level(self) -> Optional[int]:
         return self._state.battery_level
-
+ 
     def get_media_status(self) -> Dict[str, Any]:
         return {
             "playback_status": "playing" if self._state.connected else "stopped",
+            "shuffle": self._shuffle,
+            "repeat": self._repeat,
             "current_track": {
                 "title": "Mock Bluetooth Track",
                 "artist": "Mock Artist",
+                "album": "Mock Album",
                 "duration": 180,
-                "position": 45
+                "position": 45,
+                "cover_art": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%236366f1'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='12' fill='white'>Mock Cover</text></svg>"
             } if self._state.connected else None
         }
 
@@ -132,4 +138,14 @@ class MockBluetoothModule(BluetoothModuleInterface):
 
     def player_previous(self) -> bool:
         print("[MockBluetooth] Player Previous")
+        return True
+
+    def player_shuffle(self, mode: str) -> bool:
+        print(f"[MockBluetooth] Player Shuffle: {mode}")
+        self._shuffle = mode
+        return True
+
+    def player_repeat(self, mode: str) -> bool:
+        print(f"[MockBluetooth] Player Repeat: {mode}")
+        self._repeat = mode
         return True

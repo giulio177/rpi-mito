@@ -4,6 +4,8 @@ export interface AudioStatus {
   current_source: string | null
   current_track: TrackInfo | null
   playback_status: PlaybackStatus
+  shuffle?: string
+  repeat?: string
 }
 
 export interface TrackInfo {
@@ -12,6 +14,7 @@ export interface TrackInfo {
   album: string
   duration: number
   position: number
+  cover_art?: string
 }
 
 export type PlaybackStatus = 'playing' | 'paused' | 'stopped'

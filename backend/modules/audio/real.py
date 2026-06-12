@@ -125,6 +125,8 @@ class RealAudioModule(AudioModuleInterface):
         current_source = "system"
         current_track = None
         playback_status = "stopped"
+        shuffle = "off"
+        repeat = "off"
         
         try:
             bt = HALFactory.get_module("bluetooth")
@@ -134,6 +136,8 @@ class RealAudioModule(AudioModuleInterface):
                     current_source = "bluetooth"
                     current_track = bt_media.get("current_track")
                     playback_status = bt_media.get("playback_status", "stopped")
+                    shuffle = bt_media.get("shuffle", "off")
+                    repeat = bt_media.get("repeat", "off")
         except Exception as e:
             print(f"[RealAudio] Error checking Bluetooth status: {e}")
 
@@ -144,6 +148,8 @@ class RealAudioModule(AudioModuleInterface):
             "current_track": current_track,
             "source": current_source,
             "current_source": current_source,
+            "shuffle": shuffle,
+            "repeat": repeat,
         }
 
     async def _sync_volume(self):

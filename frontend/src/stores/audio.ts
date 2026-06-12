@@ -11,6 +11,8 @@ export const useAudioStore = defineStore('audio', () => {
   const playbackStatus = ref<PlaybackStatus>('stopped')
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const bluetoothShuffle = ref('off')
+  const bluetoothRepeat = ref('off')
 
   const effectiveVolume = computed(() => (muted.value ? 0 : volume.value))
 
@@ -24,6 +26,8 @@ export const useAudioStore = defineStore('audio', () => {
       currentSource.value = status.current_source
       currentTrack.value = status.current_track
       playbackStatus.value = status.playback_status
+      bluetoothShuffle.value = status.shuffle || 'off'
+      bluetoothRepeat.value = status.repeat || 'off'
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch audio status'
     } finally {
@@ -76,6 +80,12 @@ export const useAudioStore = defineStore('audio', () => {
     if (data.playback_status !== undefined) {
       playbackStatus.value = data.playback_status
     }
+    if (data.shuffle !== undefined) {
+      bluetoothShuffle.value = data.shuffle
+    }
+    if (data.repeat !== undefined) {
+      bluetoothRepeat.value = data.repeat
+    }
   }
 
   // --- Local Audio Playback (HTML5) ---
@@ -84,9 +94,23 @@ export const useAudioStore = defineStore('audio', () => {
   const isLocalPlaying = ref(false)
   const localProgress = ref(0)
   const localPlaylist = ref<any[]>([])
-  const shuffleEnabled = ref(false)
-  const repeatEnabled = ref(false)
+  const localShuffleEnabled = ref(false)
+  const localRepeatEnabled = ref(false)
   const shuffleRemaining = ref<any[]>([])
+
+  const shuffleEnabled = computed(() => {
+    if (currentSource.value === 'bluetooth') {
+      return bluetoothShuffle.value !== 'off'
+    }
+    return localShuffleEnabled.value
+  })
+
+  const repeatEnabled = computed(() => {
+    if (currentSource.value === 'bluetooth') {
+      return bluetoothRepeat.value !== 'off'
+    }
+    return localRepeatEnabled.value
+  })
 
   const playNext = () => {
     if (localPlaylist.value.length === 0) return
@@ -190,18 +214,36 @@ export const useAudioStore = defineStore('audio', () => {
     isLocalPlaying.value = true
   }
 
-  const toggleShuffle = () => {
-    shuffleEnabled.value = !shuffleEnabled.value
-    if (shuffleEnabled.value) {
-      shuffleRemaining.value = [...localPlaylist.value]
-      if (localCurrentSong.value) {
-         shuffleRemaining.value = shuffleRemaining.value.filter(s => s.id !== localCurrentSong.value.id)
+  const toggleShuffle = async () => {
+    if (currentSource.value === 'bluetooth') {
+      const nextMode = bluetoothShuffle.value === 'off' ? 'alltracks' : 'off'
+      try {
+        await api.setBluetoothShuffle(nextMode)
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Failed to toggle Bluetooth shuffle'
+      }
+    } else {
+      localShuffleEnabled.value = !localShuffleEnabled.value
+      if (localShuffleEnabled.value) {
+        shuffleRemaining.value = [...localPlaylist.value]
+        if (localCurrentSong.value) {
+           shuffleRemaining.value = shuffleRemaining.value.filter(s => s.id !== localCurrentSong.value.id)
+        }
       }
     }
   }
 
-  const toggleRepeat = () => {
-    repeatEnabled.value = !repeatEnabled.value
+  const toggleRepeat = async () => {
+    if (currentSource.value === 'bluetooth') {
+      const nextMode = bluetoothRepeat.value === 'off' ? 'alltracks' : 'off'
+      try {
+        await api.setBluetoothRepeat(nextMode)
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Failed to toggle Bluetooth repeat'
+      }
+    } else {
+      localRepeatEnabled.value = !localRepeatEnabled.value
+    }
   }
 
   const toggleLocalPlay = () => {

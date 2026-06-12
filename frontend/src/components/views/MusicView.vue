@@ -180,7 +180,7 @@ const currentArtist = computed(() => {
 
 const currentCover = computed(() => {
   if (audioStore.currentSource === 'bluetooth') {
-    return songPlaceholder
+    return audioStore.currentTrack?.cover_art || songPlaceholder
   }
   return localCurrentSong.value?.coverUrl || songPlaceholder
 })

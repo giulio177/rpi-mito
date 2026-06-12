@@ -36,13 +36,31 @@ class MockAudioModule(AudioModuleInterface):
         return True
     
     def get_status(self) -> Dict[str, any]:
+        from core.hal import HALFactory
+        shuffle = "off"
+        repeat = "off"
+        current_track = self._state.current_track
+        
+        try:
+            bt = HALFactory.get_module("bluetooth")
+            if bt and bt.get_status().get("connected"):
+                bt_media = bt.get_media_status()
+                shuffle = bt_media.get("shuffle", "off")
+                repeat = bt_media.get("repeat", "off")
+                if bt_media.get("current_track"):
+                    current_track = bt_media.get("current_track")
+        except Exception as e:
+            print(f"[MockAudio] Error checking Bluetooth status: {e}")
+
         return {
             "volume": self._state.volume,
             "muted": self._state.muted,
             "playback_status": self._state.playback_status,
-            "current_track": self._state.current_track,
+            "current_track": current_track,
             "source": self._state.current_source,
             "current_source": self._state.current_source,
+            "shuffle": shuffle,
+            "repeat": repeat,
         }
     
     def set_volume(self, level: int) -> bool:

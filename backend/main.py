@@ -231,6 +231,28 @@ async def bt_player_previous():
     return {"error": "Bluetooth module not available"}
 
 
+@app.post("/api/bluetooth/player/shuffle")
+async def bt_player_shuffle(mode: str):
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_shuffle(mode)
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
+@app.post("/api/bluetooth/player/repeat")
+async def bt_player_repeat(mode: str):
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.player_repeat(mode)
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
 
 @app.get("/api/wifi/status")
 async def wifi_status():
