@@ -6,7 +6,7 @@
       :style="{ width: '1024px', height: '600px', transform: `scale(${scale})` }"
     >
       <!-- Global Ambient Background -->
-      <div class="absolute inset-0 bg-cover bg-center opacity-30 blur-[60px] pointer-events-none z-0 scale-110" :style="{ backgroundImage: `url(${songPlaceholder})` }"></div>
+      <div class="absolute inset-0 bg-cover bg-center opacity-30 blur-[60px] pointer-events-none z-0 scale-110" :style="{ backgroundImage: `url(${currentCover})` }"></div>
       <div class="absolute inset-0 bg-gradient-to-b from-[#0e0e0e]/30 via-[#0e0e0e]/60 to-[#0e0e0e]/95 pointer-events-none z-0"></div>
 
       <!-- Ambient Glows -->
@@ -29,7 +29,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAudioStore } from '@/stores/audio'
 import TopBar from '@/components/common/TopBar.vue'
 import BottomNav from '@/components/common/BottomNav.vue'
 import VirtualKeyboard from '@/components/common/VirtualKeyboard.vue'
@@ -38,6 +40,16 @@ import { useKeyboard } from '@/composables/useKeyboard'
 
 const { isOpen } = useKeyboard()
 const scale = ref(1)
+
+const audioStore = useAudioStore()
+const { localCurrentSong } = storeToRefs(audioStore)
+
+const currentCover = computed(() => {
+  if (audioStore.currentSource === 'bluetooth') {
+    return audioStore.currentTrack?.cover_art || songPlaceholder
+  }
+  return localCurrentSong.value?.coverUrl || songPlaceholder
+})
 
 const updateScale = () => {
   const winW = window.innerWidth
