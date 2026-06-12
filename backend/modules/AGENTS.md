@@ -10,6 +10,7 @@ This directory contains the Hardware Abstraction Layer (HAL) modules. These modu
   - `real.py`: For execution on Linux/Raspberry Pi. Utilizes native tools, sysfs, dbus, or CLI commands.
 - **Base Interface:** Module actions and interfaces must extend or inherit from the defined base class (e.g., `base.py` or `interface.py`).
 - **Registration:** All modules must be registered and instantiated dynamically in [hal.py](file:///Users/giulio/Desktop/Cursor/MITO-fr/backend/core/hal.py) using `HALFactory`.
+- **Default Routing:** The real audio module must dynamically discover and set the analog headphone jack/stereo output as the system-wide default sink on startup.
 
 # Work Guidance
 - Never run production Linux commands (like `amixer`, `nmcli`, `bluetoothctl`) directly without ensuring the environment is `Linux` or checked via `real.py`.

@@ -22,8 +22,60 @@ class RealAudioModule(AudioModuleInterface):
     def initialize(self) -> bool:
         # Load current volume in the background
         asyncio.create_task(self._sync_volume())
+        # Dynamically routing all audio to the analog headphone jack
+        asyncio.create_task(self._initialize_routing())
         self.update_state(enabled=True, status="ready")
         return True
+
+    async def _initialize_routing(self):
+        """Discovers the headphone jack/analog output sink and sets it as the default sink in PulseAudio."""
+        print("[RealAudio] Initializing default audio routing...")
+        # Give PulseAudio server a moment to start / settle
+        await asyncio.sleep(2.0)
+        
+        try:
+            # 1. Discover sinks
+            proc = await asyncio.create_subprocess_exec(
+                "pactl", "list", "sinks", "short",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                print(f"[RealAudio] Failed to list sinks: {stderr.decode().strip()}")
+                return
+            
+            sinks_output = stdout.decode().strip()
+            target_sink = None
+            
+            # Look for any sink containing "analog-stereo" or "headphones" or "headphone" or "jack"
+            # Typical RPi onboard jack is: alsa_output.platform-bcm2835_audio.analog-stereo
+            for line in sinks_output.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    sink_name = parts[1]
+                    if any(term in sink_name.lower() for term in ["analog-stereo", "headphones", "headphone", "jack"]):
+                        target_sink = sink_name
+                        break
+            
+            if target_sink:
+                print(f"[RealAudio] Found analog output sink: {target_sink}")
+                # Set as default sink
+                proc_set = await asyncio.create_subprocess_exec(
+                    "pactl", "set-default-sink", target_sink,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout_set, stderr_set = await proc_set.communicate()
+                if proc_set.returncode == 0:
+                    print(f"[RealAudio] Default sink successfully set to {target_sink}")
+                else:
+                    print(f"[RealAudio] Failed to set default sink: {stderr_set.decode().strip()}")
+            else:
+                print("[RealAudio] No analog output/headphone jack sink found in PulseAudio.")
+                
+        except Exception as e:
+            print(f"[RealAudio] Error during audio routing initialization: {e}")
 
     def shutdown(self) -> bool:
         self.update_state(enabled=False, status="shutdown")

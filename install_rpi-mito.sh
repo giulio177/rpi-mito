@@ -110,12 +110,17 @@ command -v rfkill &> /dev/null && rfkill unblock bluetooth || true
 systemctl enable hciuart || true
 
 # Configurazione PulseAudio BT (Sink + Source)
-cat >/etc/pulse/default.pa <<'EOF'
-.include /etc/pulse/default.pa
+if [[ -f /etc/pulse/default.pa ]]; then
+  if ! grep -q 'module-bluetooth-discover' /etc/pulse/default.pa; then
+    cat >>/etc/pulse/default.pa <<'EOF'
+
+### Bluetooth A2DP Support
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
 EOF
+  fi
+fi
 
 # Configurazione BlueZ (main.conf)
 if [[ ! -f /etc/bluetooth/main.conf ]]; then echo "[General]" > /etc/bluetooth/main.conf; fi
@@ -146,12 +151,31 @@ WantedBy=multi-user.target
 EOF
 systemctl enable --now bt-auto-pair.service
 
-# Configurazione PulseAudio BT (Sink + Source)
+# Configurazione PulseAudio BT (Sink + Source) e driver locali per jack audio
 cat >/etc/pulse/system.pa <<'EOF'
+### Ripristino volume e stati
+load-module module-device-restore
+load-module module-stream-restore
+load-module module-card-restore
+
+### Rilevamento schede audio locali (compreso Jack analogico)
+.ifexists module-udev-detect.so
+load-module module-udev-detect tsched=0
+.endif
+
+### Protocollo nativo per client unix
 load-module module-native-protocol-unix auth-anonymous=1
+
+### Supporto Bluetooth
+.ifexists module-bluetooth-policy.so
 load-module module-bluetooth-policy
+.endif
+.ifexists module-bluetooth-discover.so
 load-module module-bluetooth-discover
+.endif
+.ifexists module-switch-on-connect.so
 load-module module-switch-on-connect
+.endif
 EOF
 
 # Servizio PulseAudio (necessario per audio bluetooth in background)
@@ -182,6 +206,8 @@ EOF
 ###############################################################################
 echo ">>> Configurazione permessi hardware e gruppi..."
 usermod -aG video,input,audio,bluetooth,tty,render,pulse-access,netdev "$USER_NAME" || true
+# Assicura che l'utente pulse (daemon di sistema) abbia accesso ad audio e bluetooth
+usermod -aG audio,bluetooth pulse || true
 
 # Abilita seatd per i permessi del compositor Wayland
 systemctl enable --now seatd || true
