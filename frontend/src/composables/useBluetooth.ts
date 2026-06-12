@@ -44,9 +44,14 @@ export function useBluetooth() {
   }
 
   const toggleFavorite = (id: string) => {
-    localStorage.setItem('bt_favorite', id)
+    const currentFav = localStorage.getItem('bt_favorite')
+    if (currentFav === id) {
+      localStorage.removeItem('bt_favorite')
+    } else {
+      localStorage.setItem('bt_favorite', id)
+    }
     pairedDevices.value.forEach(d => {
-      d.isFavorite = (d.id === id)
+      d.isFavorite = (d.id === id && currentFav !== id)
     })
   }
 
@@ -86,8 +91,31 @@ export function useBluetooth() {
     }
   }
 
+  const forgetDevice = async (id: string) => {
+    try {
+      await api.unpairBluetooth(id)
+      if (localStorage.getItem('bt_favorite') === id) {
+        localStorage.removeItem('bt_favorite')
+      }
+      await fetchStatus()
+    } catch (e) {
+      console.error('Errore forget device:', e)
+    }
+  }
+
+  const disconnectDevice = async () => {
+    try {
+      await api.disconnectBluetooth()
+      await fetchStatus()
+    } catch (e) {
+      console.error('Errore disconnect device:', e)
+    }
+  }
+
   const connectToFavorite = async () => {
-    if (favoriteDevice.value && !favoriteDevice.value.isConnected) {
+    if (connectedDevice.value) {
+      await toggleConnection(connectedDevice.value.id)
+    } else if (favoriteDevice.value) {
       await toggleConnection(favoriteDevice.value.id)
     }
   }
@@ -122,6 +150,8 @@ export function useBluetooth() {
     toggleConnection,
     toggleFavorite,
     connectToFavorite,
+    forgetDevice,
+    disconnectDevice,
     setDiscoverable
   }
 }

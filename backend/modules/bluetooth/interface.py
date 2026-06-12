@@ -36,6 +36,11 @@ class BluetoothModuleInterface(BaseModule):
         pass
     
     @abstractmethod
+    def unpair(self, address: str) -> bool:
+        """Unpair/forget a device by address"""
+        pass
+    
+    @abstractmethod
     def get_battery_level(self) -> Optional[int]:
         """Get battery level of connected device"""
         pass

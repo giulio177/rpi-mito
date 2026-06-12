@@ -8,6 +8,7 @@ class MockBluetoothModule(BluetoothModuleInterface):
     
     def __init__(self):
         super().__init__()
+        self._paired_addresses = {"AA:BB:CC:DD:EE:FF"}
         self._state = self._create_initial_state()
     
     def _create_initial_state(self) -> BluetoothState:
@@ -38,7 +39,7 @@ class MockBluetoothModule(BluetoothModuleInterface):
         devices = []
         for dev in self._state.available_devices:
             is_connected = self._state.connected and dev["address"] == self._state.device_address
-            is_paired = dev["address"] == "AA:BB:CC:DD:EE:FF" or is_connected
+            is_paired = dev["address"] in self._paired_addresses
             devices.append({
                 "address": dev["address"],
                 "name": dev["name"],
@@ -66,7 +67,7 @@ class MockBluetoothModule(BluetoothModuleInterface):
         devices = []
         for dev in self._state.available_devices:
             is_connected = self._state.connected and dev["address"] == self._state.device_address
-            is_paired = dev["address"] == "AA:BB:CC:DD:EE:FF" or is_connected
+            is_paired = dev["address"] in self._paired_addresses
             devices.append({
                 "address": dev["address"],
                 "name": dev["name"],
@@ -79,6 +80,7 @@ class MockBluetoothModule(BluetoothModuleInterface):
         print(f"[MockBluetooth] Connecting to {address}")
         self._state.connected = True
         self._state.device_address = address
+        self._paired_addresses.add(address)
         for dev in self._state.available_devices:
             if dev["address"] == address:
                 self._state.device_name = dev["name"]
@@ -88,6 +90,16 @@ class MockBluetoothModule(BluetoothModuleInterface):
     def disconnect(self) -> bool:
         print("[MockBluetooth] Disconnecting")
         self._state.connected = False
+        return True
+    
+    def unpair(self, address: str) -> bool:
+        print(f"[MockBluetooth] Unpairing {address}")
+        if address in self._paired_addresses:
+            self._paired_addresses.remove(address)
+        if self._state.device_address == address:
+            self._state.connected = False
+            self._state.device_address = None
+            self._state.device_name = None
         return True
     
     def get_battery_level(self) -> Optional[int]:

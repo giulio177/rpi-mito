@@ -354,6 +354,27 @@ class RealBluetoothModule(BluetoothModuleInterface):
             return await self.toggle_connection(self._state.device_address, False)
         return True
 
+    async def unpair(self, address: str) -> bool:
+        address = address.upper()
+        try:
+            if self._state.device_address and self._state.device_address.upper() == address:
+                await self.disconnect()
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl", "remove", address,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                self._state.available_devices = [d for d in self._state.available_devices if d["address"] != address]
+                return True
+            else:
+                print(f"[RealBluetooth] Remove failed: {stderr.decode()} | {stdout.decode()}")
+                return False
+        except Exception as e:
+            print(f"[RealBluetooth] Exception unpairing device: {e}")
+            return False
+
     async def _disable_discoverable(self):
         await asyncio.sleep(60)
         try:

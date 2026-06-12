@@ -82,6 +82,13 @@ class ApiClient {
     return response.data
   }
 
+  async unpairBluetooth(address: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(
+      `/api/bluetooth/unpair?address=${address}`
+    )
+    return response.data
+  }
+
   async getWiFiStatus(): Promise<WiFiStatus> {
     const response = await this.client.get<WiFiStatus>('/api/wifi/status')
     return response.data

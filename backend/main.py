@@ -165,6 +165,17 @@ async def bt_disconnect():
     return {"error": "Bluetooth module not available"}
 
 
+@app.post("/api/bluetooth/unpair")
+async def bt_unpair(address: str):
+    bt = HALFactory.get_module("bluetooth")
+    if bt:
+        success = bt.unpair(address)
+        if inspect.isawaitable(success):
+            success = await success
+        return {"success": success}
+    return {"error": "Bluetooth module not available"}
+
+
 @app.post("/api/bluetooth/discoverable")
 async def bt_discoverable(enabled: bool):
     bt = HALFactory.get_module("bluetooth")
