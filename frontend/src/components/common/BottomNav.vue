@@ -35,12 +35,26 @@
         <div class="relative w-32 h-1 bg-white/10 rounded-full">
           <!-- Parte Riempita -->
           <div 
-            class="absolute top-0 left-0 h-full rounded-full pointer-events-none transition-all duration-100" 
-            :class="muted ? 'bg-white/20 shadow-none' : 'bg-[#ddb7ff] shadow-[0_0_10px_rgba(221,183,255,0.8)]'" 
-            :style="{ width: volumeModel + '%' }"
+            class="absolute top-0 left-0 h-full rounded-full pointer-events-none" 
+            :class="[
+              muted ? 'bg-white/20 shadow-none' : 'bg-[#ddb7ff] shadow-[0_0_10px_rgba(221,183,255,0.8)]',
+              isDragging ? 'transition-none' : 'transition-all duration-200'
+            ]" 
+            :style="{ width: localVolume + '%' }"
           ></div>
           <!-- Input Range Invisibile Interattivo -->
-          <input type="range" min="0" max="100" v-model="volumeModel" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" />
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            v-model="localVolume" 
+            @input="onVolumeInput"
+            @change="onDragEnd"
+            @mousedown="onDragStart"
+            @touchstart="onDragStart"
+            @touchend="onDragEnd"
+            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0 z-10" 
+          />
         </div>
         <span @click="handleVolumeUp" class="material-symbols-outlined text-[#ddb7ff] text-[20px] cursor-pointer hover:brightness-125 transition-all duration-200 active:scale-75 select-none">volume_up</span>
       </div>
@@ -50,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAudioStore } from '@/stores/audio'
 import { storeToRefs } from 'pinia'
@@ -61,12 +75,67 @@ const route = useRoute()
 const audioStore = useAudioStore()
 const { volume, muted } = storeToRefs(audioStore)
 
-const volumeModel = computed({
-  get: () => volume.value,
-  set: (val) => {
-    audioStore.setVolume(Number(val))
+const localVolume = ref(volume.value)
+const isDragging = ref(false)
+
+// Sync localVolume with store volume when not dragging
+watch(volume, (newVal) => {
+  if (!isDragging.value) {
+    localVolume.value = newVal
   }
-})
+}, { immediate: true })
+
+let lastCallTime = 0
+let throttleTimer: any = null
+
+const updateVolumeBackend = async (value: number) => {
+  await audioStore.setVolume(value)
+}
+
+const throttledUpdateVolume = (value: number) => {
+  const now = Date.now()
+  const limit = 100 // update volume at most once every 100ms
+  
+  if (now - lastCallTime >= limit) {
+    updateVolumeBackend(value)
+    lastCallTime = now
+  } else {
+    if (throttleTimer) clearTimeout(throttleTimer)
+    throttleTimer = setTimeout(() => {
+      updateVolumeBackend(value)
+      lastCallTime = Date.now()
+    }, limit - (now - lastCallTime))
+  }
+}
+
+const onVolumeInput = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const value = Number(target.value)
+  localVolume.value = value
+  throttledUpdateVolume(value)
+}
+
+const onDragStart = () => {
+  isDragging.value = true
+}
+
+const onDragEnd = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const value = Number(target.value)
+  localVolume.value = value
+  
+  if (throttleTimer) {
+    clearTimeout(throttleTimer)
+    throttleTimer = null
+  }
+  
+  // Final, absolute sync on drag release
+  await updateVolumeBackend(value)
+  
+  setTimeout(() => {
+    isDragging.value = false
+  }, 200)
+}
 
 // Mute long-press detection logic
 const longPressTimer = ref<any>(null)
@@ -93,11 +162,13 @@ const handleVolumeDown = async () => {
     return
   }
   const newVol = Math.max(0, volume.value - 10)
+  localVolume.value = newVol
   await audioStore.setVolume(newVol)
 }
 
 const handleVolumeUp = async () => {
   const newVol = Math.min(100, volume.value + 10)
+  localVolume.value = newVol
   await audioStore.setVolume(newVol)
 }
 
